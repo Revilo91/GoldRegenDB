@@ -53,7 +53,7 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.5.0",
     "pdf-lib": "^1.17.1",
-    "pg": "^8.19.0",
+    "pg": "^8.23.1",
     "qrcode": "^1.5.1",
     "saxon-js": "^2.7.0",
     "swagger-jsdoc": "^6.3.0",

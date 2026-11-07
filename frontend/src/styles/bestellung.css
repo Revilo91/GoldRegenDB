@@ -63,3 +63,10 @@
   margin-bottom: 16px !important;
 }
 
+
+/* Bestellübersicht: Kundendaten mit nicht passendem Schlüssel (nichtLesbar) */
+.bestellung-unlesbar {
+  color: var(--text-muted);
+  font-style: italic;
+  cursor: not-allowed;
+}

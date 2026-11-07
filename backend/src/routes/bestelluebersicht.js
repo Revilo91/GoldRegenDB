@@ -9,6 +9,7 @@ const {
   toBestellungResponse,
   validateDatenminimierung,
   insertBestellung,
+  istKundeLesbar,
 } = require('../utils/bestellungService');
 const {
   leseDataUrl,
@@ -349,7 +350,7 @@ router.put('/:id', validate(bestellungUpdateSchema), async (req, res) => {
     }
 
     const { rows: existingRows } = await db.query(
-      `SELECT b.kunde_id, b.foto_pfad, k.anonymisiert FROM bestellung b
+      `SELECT b.kunde_id, b.foto_pfad, k.anonymisiert, k.name_enc FROM bestellung b
        JOIN bestellung_kunde k ON k.id = b.kunde_id WHERE b.id = $1`,
       [req.params.id]
     );
@@ -357,8 +358,10 @@ router.put('/:id', validate(bestellungUpdateSchema), async (req, res) => {
       return res.status(404).json({ error: 'Bestellung nicht gefunden' });
     }
     const { kunde_id: kundeId, foto_pfad: alterFotoPfad, anonymisiert } = existingRows[0];
+    // Unlesbare Kundendaten (fremder Schlüssel) wie anonymisierte behandeln: nicht überschreiben.
+    const kundeGesperrt = anonymisiert || !istKundeLesbar(existingRows[0]);
 
-    if (!anonymisiert) {
+    if (!kundeGesperrt) {
       const minimierungsFehler = validateDatenminimierung(versandart, kunde);
       if (minimierungsFehler) {
         return res.status(400).json({ error: minimierungsFehler });
@@ -384,7 +387,7 @@ router.put('/:id', validate(bestellungUpdateSchema), async (req, res) => {
       if (alterFotoPfad) await loescheFoto(client, 'bestellung', alterFotoPfad);
     }
 
-    if (!anonymisiert && kunde) {
+    if (!kundeGesperrt && kunde) {
       await client.query(
         `UPDATE bestellung_kunde SET
            name_enc = $1, email_enc = $2, telefonnummer_enc = $3,

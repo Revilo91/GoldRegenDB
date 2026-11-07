@@ -18,8 +18,10 @@ jest.mock('../src/utils/logger', () => ({
   debug: jest.fn(),
 }));
 
+const crypto = require('crypto');
 const request = require('supertest');
 const express = require('express');
+const logger = require('../src/utils/logger');
 const db = require('../src/config/db');
 const { encryptField } = require('../src/utils/encryptionService');
 const bestelluebersichtRoutes = require('../src/routes/bestelluebersicht');
@@ -37,6 +39,34 @@ function buildApp(role = 'bearbeiter') {
 
 function makeClient() {
   return { query: jest.fn(), release: jest.fn() };
+}
+
+// Wie encryptField(), aber mit fremdem Schlüssel: simuliert Altdaten nach einem Schlüsselwechsel.
+function encryptMitFremdemSchluessel(klartext) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', crypto.randomBytes(32), iv);
+  const ciphertext = Buffer.concat([cipher.update(klartext, 'utf8'), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]);
+}
+
+function bestellRow(id, nameEnc) {
+  return {
+    id,
+    bestellnummer: `BE-2026-00${id}`,
+    kunde_id: id,
+    versandart: 'abholung',
+    beschreibung: 'Test',
+    status: 'offen',
+    kunde_pseudonym: `BK-${id}`,
+    anonymisiert: false,
+    name_enc: nameEnc,
+    email_enc: null,
+    telefonnummer_enc: null,
+    strasse_enc: null,
+    hausnummer_enc: null,
+    plz_enc: null,
+    ort_enc: null,
+  };
 }
 
 describe('Bestellübersicht API', () => {
@@ -159,6 +189,43 @@ describe('Bestellübersicht API', () => {
     expect(res.body[0].kunde.name).toBe('Erika Mustermann');
     expect(res.body[0].kunde.email).toBe('erika@example.com');
     expect(res.body[0].name_enc).toBeUndefined();
+  });
+
+  it('GET / zeigt nicht entschlüsselbare Kunden als nichtLesbar, lesbare bleiben unberührt', async () => {
+    db.query.mockResolvedValueOnce({
+      rows: [
+        bestellRow(1, encryptMitFremdemSchluessel('Alter Kunde')),
+        bestellRow(2, encryptField('Erika Mustermann')),
+      ],
+    });
+
+    const res = await request(buildApp()).get('/api/bestelluebersicht');
+
+    expect(res.status).toBe(200);
+    expect(res.body[0].kunde.nichtLesbar).toBe(true);
+    expect(res.body[0].kunde.name).toBeNull();
+    expect(res.body[0].bestellnummer).toBe('BE-2026-001');
+    expect(res.body[1].kunde.nichtLesbar).toBe(false);
+    expect(res.body[1].kunde.name).toBe('Erika Mustermann');
+    expect(logger.warn).toHaveBeenCalledWith('BESTELLUNG', expect.stringContaining('BE-2026-001'), expect.anything());
+  });
+
+  it('PUT /:id lässt Kundendaten unlesbarer Bestellungen unangetastet', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [{ kunde_id: 1, foto_pfad: null, anonymisiert: false, name_enc: encryptMitFremdemSchluessel('Alter Kunde') }] })
+      .mockResolvedValueOnce({ rows: [bestellRow(1, encryptMitFremdemSchluessel('Alter Kunde'))] });
+    const client = makeClient();
+    db.connect.mockResolvedValue(client);
+    client.query.mockResolvedValue({ rows: [], rowCount: 1 });
+
+    const res = await request(buildApp())
+      .put('/api/bestelluebersicht/1')
+      .send({ versandart: 'abholung', beschreibung: 'neu', status: 'in_bearbeitung', kunde: { name: '' } });
+
+    expect(res.status).toBe(200);
+    const sqls = client.query.mock.calls.map(([sql]) => sql);
+    expect(sqls.some((sql) => /UPDATE bestellung_kunde/.test(sql))).toBe(false);
+    expect(sqls.some((sql) => /UPDATE bestellung SET/.test(sql))).toBe(true);
   });
 
   it('POST /:id/anonymisieren verweigert Zugriff ohne Admin-Rolle', async () => {

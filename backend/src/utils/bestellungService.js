@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { encryptField, decryptField, hashValue } = require('./encryptionService');
+const logger = require('./logger');
 
 const PRIVACY_POLICY_VERSION = process.env.PRIVACY_POLICY_VERSION || 'unbekannt';
 
@@ -22,20 +23,51 @@ function generateKundePseudonym() {
   return `BK-${crypto.randomBytes(6).toString('hex')}`;
 }
 
+// Altdaten können mit einem früheren Schlüssel verschlüsselt sein (Schlüsselwechsel, Restore).
+// Eine solche Zeile darf die übrigen Bestellungen nicht blockieren.
+function istKundeLesbar(row) {
+  try {
+    decryptField(row.name_enc);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function decryptKunde(row) {
-  return {
+  const basis = {
     kundeId: row.kunde_id,
     kundePseudonym: row.kunde_pseudonym,
     anonymisiert: row.anonymisiert,
     anonymisiertAm: row.anonymisiert_am,
-    name: decryptField(row.name_enc),
-    email: decryptField(row.email_enc),
-    telefonnummer: decryptField(row.telefonnummer_enc),
-    strasse: decryptField(row.strasse_enc),
-    hausnummer: decryptField(row.hausnummer_enc),
-    plz: decryptField(row.plz_enc),
-    ort: decryptField(row.ort_enc),
   };
+  try {
+    return {
+      ...basis,
+      nichtLesbar: false,
+      name: decryptField(row.name_enc),
+      email: decryptField(row.email_enc),
+      telefonnummer: decryptField(row.telefonnummer_enc),
+      strasse: decryptField(row.strasse_enc),
+      hausnummer: decryptField(row.hausnummer_enc),
+      plz: decryptField(row.plz_enc),
+      ort: decryptField(row.ort_enc),
+    };
+  } catch (err) {
+    const bezug = row.bestellnummer ?? `Kunde ${row.kunde_id}`;
+    logger.warn('BESTELLUNG', `Kundendaten von ${bezug} nicht entschlüsselbar (Schlüssel passt nicht)`, { message: err.message });
+    return {
+      ...basis,
+      nichtLesbar: true,
+      name: null,
+      email: null,
+      telefonnummer: null,
+      strasse: null,
+      hausnummer: null,
+      plz: null,
+      ort: null,
+    };
+  }
 }
 
 function toBestellungResponse(row) {
@@ -113,6 +145,7 @@ module.exports = {
   getNextBestellnummer,
   generateKundePseudonym,
   decryptKunde,
+  istKundeLesbar,
   toBestellungResponse,
   validateDatenminimierung,
   insertBestellung,

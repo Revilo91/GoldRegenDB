@@ -199,7 +199,7 @@ export default function Bestelluebersicht() {
   }, [bestellungen, search, statusFilter]);
 
   const isLieferung = form.versandart === "lieferung";
-  const kundeDisabled = editing && editing !== "new" && editing.kunde.anonymisiert;
+  const kundeDisabled = editing && editing !== "new" && (editing.kunde.anonymisiert || editing.kunde.nichtLesbar);
 
   return (
     <div>
@@ -249,9 +249,14 @@ export default function Bestelluebersicht() {
                 {
                   key: "kunde",
                   label: "Kunde",
-                  render: (r) => r.kunde.anonymisiert ? (
-                    <em>{r.kunde.kundePseudonym} (anonymisiert)</em>
-                  ) : r.kunde.name,
+                  render: (r) => {
+                    if (r.kunde.nichtLesbar) {
+                      return <em className="bestellung-unlesbar">{r.kunde.kundePseudonym} (nicht entschlüsselbar)</em>;
+                    }
+                    return r.kunde.anonymisiert ? (
+                      <em>{r.kunde.kundePseudonym} (anonymisiert)</em>
+                    ) : r.kunde.name;
+                  },
                 },
                 {
                   key: "versandart",
@@ -464,6 +469,14 @@ export default function Bestelluebersicht() {
                       Ich stimme der Verarbeitung meiner Daten zur Bearbeitung dieser Bestellung gemäß der
                       Datenschutzerklärung zu. *
                     </label>
+                  </div>
+                )}
+
+                {editing !== "new" && editing.kunde.nichtLesbar && (
+                  <div className="form-group form-group-full">
+                    <span className="badge warning">
+                      Kundendaten sind nicht entschlüsselbar (anderer Schlüssel). Sie bleiben beim Speichern unverändert.
+                    </span>
                   </div>
                 )}
 

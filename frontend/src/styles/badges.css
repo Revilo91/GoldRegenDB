@@ -17,3 +17,21 @@
   gap: 4px;
 }
 
+
+/* Status-Badges der Schmuckstücke (#367), Klassen aus statusBadge() in utils/status.js */
+.badge.status-lager {
+  background: var(--status-lager-bg);
+  color: var(--status-lager);
+}
+.badge.status-ausgelagert {
+  background: var(--status-ausgelagert-bg);
+  color: var(--status-ausgelagert);
+}
+.badge.status-verkauft {
+  background: var(--status-verkauft-bg);
+  color: var(--status-verkauft);
+}
+.badge.status-ausschuss {
+  background: var(--status-ausschuss-bg);
+  color: var(--status-ausschuss);
+}

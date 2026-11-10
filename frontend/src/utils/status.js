@@ -36,10 +36,10 @@ export function istWahr(wert) {
 }
 
 const BADGES = {
-  [STATUS.VERKAUFT]: { label: "Verkauft", klasse: "badge success" },
-  [STATUS.AUSSCHUSS]: { label: "Ausschuss", klasse: "badge danger" },
-  [STATUS.AUSGELAGERT]: { label: "Ausgelagert", klasse: "badge gold" },
-  [STATUS.LAGER]: { label: "Lager", klasse: "badge gold" },
+  [STATUS.VERKAUFT]: { label: "Verkauft", klasse: "badge status-verkauft" },
+  [STATUS.AUSSCHUSS]: { label: "Ausschuss", klasse: "badge status-ausschuss" },
+  [STATUS.AUSGELAGERT]: { label: "Ausgelagert", klasse: "badge status-ausgelagert" },
+  [STATUS.LAGER]: { label: "Lager", klasse: "badge status-lager" },
 };
 
 /**

@@ -36,11 +36,20 @@ const CHART_COLORS = {
   gold: "#d4a853",
 };
 
+// Statusfarben der Schmuckstücke (#367), gleiche Werte wie --status-* in styles/variables.css
+// (Recharts braucht echte Farbwerte). Reihenfolge wie statusDistribution: Lager, Ausgelagert, Verkauft, Ausschuss.
+const STATUS_FARBEN = {
+  lager: "#10b981",
+  ausgelagert: "#f59e0b",
+  verkauft: "#9ca3b4",
+  ausschuss: "#ef4444",
+};
+
 const STATUS_COLORS = [
-  CHART_COLORS.info,
-  CHART_COLORS.warning,
-  CHART_COLORS.success,
-  CHART_COLORS.danger,
+  STATUS_FARBEN.lager,
+  STATUS_FARBEN.ausgelagert,
+  STATUS_FARBEN.verkauft,
+  STATUS_FARBEN.ausschuss,
 ];
 
 const TOOLTIP_STYLE = {
@@ -200,28 +209,28 @@ export default function Dashboard() {
           <div className="stat-value">{s.totalPieces}</div>
           <div className="stat-label">Gesamt Stücke</div>
         </div>
-        <div className="stat-card info">
+        <div className="stat-card status-lager">
           <div className="stat-icon">
             <FontAwesomeIcon icon={faWarehouse} />
           </div>
           <div className="stat-value">{s.inStockPieces}</div>
           <div className="stat-label">Im Lager</div>
         </div>
-        <div className="stat-card warning">
+        <div className="stat-card status-ausgelagert">
           <div className="stat-icon">
             <FontAwesomeIcon icon={faBox} />
           </div>
           <div className="stat-value">{s.outsourcedPieces}</div>
           <div className="stat-label">Ausgelagert</div>
         </div>
-        <div className="stat-card success">
+        <div className="stat-card status-verkauft">
           <div className="stat-icon">
             <FontAwesomeIcon icon={faCheckCircle} />
           </div>
           <div className="stat-value">{s.soldPieces}</div>
           <div className="stat-label">Verkauft</div>
         </div>
-        <div className="stat-card danger">
+        <div className="stat-card status-ausschuss">
           <div className="stat-icon">
             <FontAwesomeIcon icon={faTimesCircle} />
           </div>
@@ -269,7 +278,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div
-                  className="stat-card success dashboard-minh-auto">
+                  className="stat-card status-lager dashboard-minh-auto">
                   <div className="stat-value dashboard-fs-1_5rem">
                     {mStats.verfuegbar}
                   </div>
@@ -278,7 +287,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div
-                  className="stat-card warning dashboard-minh-auto">
+                  className="stat-card status-ausgelagert dashboard-minh-auto">
                   <div className="stat-value dashboard-fs-1_5rem">
                     {mStats.ausgelagert}
                   </div>
@@ -286,7 +295,7 @@ export default function Dashboard() {
                     Ausgelagert
                   </div>
                 </div>
-                <div className="stat-card gold dashboard-minh-auto">
+                <div className="stat-card status-verkauft dashboard-minh-auto">
                   <div className="stat-value dashboard-fs-1_5rem">
                     {mStats.verkauft}
                   </div>
@@ -323,7 +332,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div
-                  className="stat-card success dashboard-minh-auto">
+                  className="stat-card status-lager dashboard-minh-auto">
                   <div className="stat-value dashboard-fs-1_5rem">
                     {sStats.verfuegbar}
                   </div>
@@ -332,7 +341,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div
-                  className="stat-card warning dashboard-minh-auto">
+                  className="stat-card status-ausgelagert dashboard-minh-auto">
                   <div className="stat-value dashboard-fs-1_5rem">
                     {sStats.ausgelagert}
                   </div>
@@ -340,7 +349,7 @@ export default function Dashboard() {
                     Ausgelagert
                   </div>
                 </div>
-                <div className="stat-card gold dashboard-minh-auto">
+                <div className="stat-card status-verkauft dashboard-minh-auto">
                   <div className="stat-value dashboard-fs-1_5rem">
                     {sStats.verkauft}
                   </div>
@@ -400,22 +409,22 @@ export default function Dashboard() {
                   />
                   <Bar
                     dataKey="Verfügbar"
-                    fill={CHART_COLORS.success}
+                    fill={STATUS_FARBEN.lager}
                     radius={[4, 4, 0, 0]}
                   />
                   <Bar
                     dataKey="Ausgelagert"
-                    fill={CHART_COLORS.warning}
+                    fill={STATUS_FARBEN.ausgelagert}
                     radius={[4, 4, 0, 0]}
                   />
                   <Bar
                     dataKey="Verkauft"
-                    fill={CHART_COLORS.gold}
+                    fill={STATUS_FARBEN.verkauft}
                     radius={[4, 4, 0, 0]}
                   />
                   <Bar
                     dataKey="Ausschuss"
-                    fill={CHART_COLORS.danger}
+                    fill={STATUS_FARBEN.ausschuss}
                     radius={[4, 4, 0, 0]}
                   />
                 </BarChart>

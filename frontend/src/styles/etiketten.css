@@ -244,3 +244,8 @@
   gap: 8px;
 }
 
+
+/* ============ Rückfrage ohne Materialhinweise ============ */
+.etikett-rueckfrage-modal {
+  max-width: 440px;
+}

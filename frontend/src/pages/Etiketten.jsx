@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import DataTable from "../components/DataTable";
+import MaterialhinweisRueckfrageModal from "../components/MaterialhinweisRueckfrageModal";
 
 const PRESET_HINTS = ["Edelstahl", "Nickelfrei", "versilbert", "vergoldet"];
 const MAX_HINTS = 6;
@@ -36,6 +37,8 @@ export default function Etiketten({ showHeader = true }) {
   const [sizeMode, setSizeMode] = useState("fit");
   const [printing, setPrinting] = useState(false);
   const [error, setError] = useState("");
+  // Wartender Druckweg ("druck" | "tab"), solange die Rückfrage ohne Materialhinweise offen ist
+  const [rueckfrageWeg, setRueckfrageWeg] = useState(null);
 
   const previewFrameRef = useRef(null);
 
@@ -297,6 +300,28 @@ export default function Etiketten({ showHeader = true }) {
       win.close();
       setError(err.message || "Fehler beim Erstellen der Druckansicht");
     }
+  }
+
+  // Die Rückfrage läuft VOR window.open: Der Druck startet erst im Klick auf "Trotzdem drucken",
+  // dadurch bleibt window.open synchron in einem Klick-Handler (Popup-Blocker).
+  function druckAnfragen(weg) {
+    if (items.length === 0) return;
+    if (selectedHints.length === 0) {
+      setRueckfrageWeg(weg);
+      return;
+    }
+    druckStarten(weg);
+  }
+
+  function druckStarten(weg) {
+    if (weg === "tab") openPrintTab();
+    else printLabels();
+  }
+
+  function rueckfrageBestaetigen() {
+    const weg = rueckfrageWeg;
+    setRueckfrageWeg(null);
+    druckStarten(weg);
   }
 
   function clearList() {
@@ -719,7 +744,7 @@ export default function Etiketten({ showHeader = true }) {
                 <button
                   type="button"
                   className="btn btn-primary btn-block"
-                  onClick={printLabels}
+                  onClick={() => druckAnfragen("druck")}
                   disabled={items.length === 0 || printing}>
                   {printing
                     ? "Drucke …"
@@ -728,7 +753,7 @@ export default function Etiketten({ showHeader = true }) {
                 <button
                   type="button"
                   className="btn btn-secondary btn-block"
-                  onClick={openPrintTab}
+                  onClick={() => druckAnfragen("tab")}
                   disabled={items.length === 0}>
                   Druckansicht im neuen Tab
                 </button>
@@ -737,6 +762,12 @@ export default function Etiketten({ showHeader = true }) {
           </section>
         </aside>
       </div>
+      {rueckfrageWeg && (
+        <MaterialhinweisRueckfrageModal
+          onTrotzdem={rueckfrageBestaetigen}
+          onAbbrechen={() => setRueckfrageWeg(null)}
+        />
+      )}
     </div>
   );
 }

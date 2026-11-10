@@ -73,14 +73,14 @@ describe('statusVon(stueck)', () => {
 describe('statusBadge(stueck, kundenName)', () => {
   it('liefert Label und CSS-Klasse', () => {
     expect(statusBadge({ Verkauft: true, Ausschuss: false, Ausgelagert: 0 }))
-      .toEqual({ label: 'Verkauft', klasse: 'badge success' });
+      .toEqual({ label: 'Verkauft', klasse: 'badge status-verkauft' });
     expect(statusBadge({ Verkauft: false, Ausschuss: true, Ausgelagert: 0 }))
-      .toEqual({ label: 'Ausschuss', klasse: 'badge danger' });
+      .toEqual({ label: 'Ausschuss', klasse: 'badge status-ausschuss' });
   });
 
-  it('setzt für "Lager" überall dieselbe Klasse (G22)', () => {
+  it('setzt für "Lager" überall dieselbe Klasse (G22, #367: grün)', () => {
     const badge = statusBadge({ Verkauft: false, Ausschuss: false, Ausgelagert: 0 });
-    expect(badge).toEqual({ label: 'Lager', klasse: 'badge gold' });
+    expect(badge).toEqual({ label: 'Lager', klasse: 'badge status-lager' });
   });
 
   it('löst Ausgelagert auf den Kundennamen auf, wenn möglich', () => {
@@ -88,7 +88,7 @@ describe('statusBadge(stueck, kundenName)', () => {
       { Verkauft: false, Ausschuss: false, Ausgelagert: 4 },
       (id) => `Kunde ${id}`,
     );
-    expect(badge).toEqual({ label: 'Kunde 4', klasse: 'badge gold' });
+    expect(badge).toEqual({ label: 'Kunde 4', klasse: 'badge status-ausgelagert' });
   });
 
   it('bleibt ohne Auflöser beim Wort "Ausgelagert"', () => {

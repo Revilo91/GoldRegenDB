@@ -47,10 +47,10 @@
   background: var(--text-muted);
 }
 
-.status-chip-punkt--lager { background: var(--gold); }
-.status-chip-punkt--ausgelagert { background: var(--info); }
-.status-chip-punkt--verkauft { background: var(--success); }
-.status-chip-punkt--ausschuss { background: var(--danger); }
+.status-chip-punkt--lager { background: var(--status-lager); }
+.status-chip-punkt--ausgelagert { background: var(--status-ausgelagert); }
+.status-chip-punkt--verkauft { background: var(--status-verkauft); }
+.status-chip-punkt--ausschuss { background: var(--status-ausschuss); }
 
 .status-chip-zahl {
   font-variant-numeric: tabular-nums;
@@ -141,10 +141,10 @@ button.schmuckstueck-zeile {
   background: var(--text-muted);
 }
 
-.schmuckstueck-zeile-punkt--lager { background: var(--gold); }
-.schmuckstueck-zeile-punkt--ausgelagert { background: var(--info); }
-.schmuckstueck-zeile-punkt--verkauft { background: var(--success); }
-.schmuckstueck-zeile-punkt--ausschuss { background: var(--danger); }
+.schmuckstueck-zeile-punkt--lager { background: var(--status-lager); }
+.schmuckstueck-zeile-punkt--ausgelagert { background: var(--status-ausgelagert); }
+.schmuckstueck-zeile-punkt--verkauft { background: var(--status-verkauft); }
+.schmuckstueck-zeile-punkt--ausschuss { background: var(--status-ausschuss); }
 
 /* ============ SCHMUCKSTÜCKE: ANSICHT TABELLE / FOTO-RASTER ============ */
 .ansicht-umschalter {

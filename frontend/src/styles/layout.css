@@ -89,6 +89,19 @@
 .stat-card.danger .stat-value {
   color: var(--danger);
 }
+/* Statusfarben der Schmuckstücke (#367) */
+.stat-card.status-lager .stat-value {
+  color: var(--status-lager);
+}
+.stat-card.status-ausgelagert .stat-value {
+  color: var(--status-ausgelagert);
+}
+.stat-card.status-verkauft .stat-value {
+  color: var(--status-verkauft);
+}
+.stat-card.status-ausschuss .stat-value {
+  color: var(--status-ausschuss);
+}
 
 /* ============ TABLE ============ */
 .card,

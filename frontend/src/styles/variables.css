@@ -38,6 +38,17 @@
   --info-bg: rgba(59, 130, 246, 0.1);
   --gold: #d4a853;
   --gold-bg: rgba(212, 168, 83, 0.1);
+  /* Statusfarben der Schmuckstücke (#367): überall dieselbe Zuordnung.
+     Verkauft ist bewusst grau (neutral, "erledigt"); Blau bleibt den Info-Meldungen vorbehalten.
+     Die Hex-Werte stehen auch in STATUS_FARBEN (pages/Dashboard.jsx) für die Diagramme. */
+  --status-lager: #10b981;
+  --status-lager-bg: rgba(16, 185, 129, 0.1);
+  --status-ausgelagert: #f59e0b;
+  --status-ausgelagert-bg: rgba(245, 158, 11, 0.1);
+  --status-verkauft: #9ca3b4;
+  --status-verkauft-bg: rgba(156, 163, 180, 0.12);
+  --status-ausschuss: #ef4444;
+  --status-ausschuss-bg: rgba(239, 68, 68, 0.1);
   --sidebar-width: 260px;
   --sidebar-collapsed-width: 80px;
   --radius: 12px;

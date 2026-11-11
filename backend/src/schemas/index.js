@@ -178,8 +178,6 @@ const userCreateSchema = z.object({
 
 const userUpdateSchema = userCreateSchema.omit({ password: true });
 
-const resetPasswordSchema = z.object({ newPassword: neuesPasswort });
-
 const adminGenerateResetLinkSchema = z.object({
   userId: ganzzahl({ min: 1 }),
 });
@@ -300,7 +298,6 @@ module.exports = {
   rechnungZuruecksetzenSchema,
   userCreateSchema,
   userUpdateSchema,
-  resetPasswordSchema,
   adminGenerateResetLinkSchema,
   loginSchema,
   changePasswordSchema,

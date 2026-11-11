@@ -454,12 +454,9 @@ DELETE /schmuckstuecke/foto/:fileName       Foto löschen
 
 ```
 GET    /kunden                   Alle Kunden
-GET    /kunden/:id               Einzelnen Kunden
-GET    /kunden/:id/schmuckstuecke Ausgelagerte Stücke dieses Kunden
 POST   /kunden                   Neuen Kunden anlegen
 PUT    /kunden/:id               Bearbeiten
 DELETE /kunden/:id               Löschen
-PUT    /kunden/:id/restock       Alle ausgelagerten Stücke zurücklagern
 PUT    /kunden/:id/restock-selective Ausgewählte Stücke zurücklagern
 ```
 
@@ -516,7 +513,6 @@ POST   /public/bestellung                 Öffentlich: Neue Bestellung (Rate-Lim
 GET    /bestelluebersicht                 Alle Bestellungen (inkl. entschlüsselte Kundendaten)
 GET    /bestelluebersicht/next-number     Nächste Bestellnummer
 GET    /bestelluebersicht/foto/:fileName  Referenzfoto
-GET    /bestelluebersicht/:id             Einzelne Bestellung
 POST   /bestelluebersicht                 Anlegen
 PUT    /bestelluebersicht/:id             Aktualisieren
 POST   /bestelluebersicht/:id/anonymisieren DSGVO-Anonymisierung (admin)
@@ -554,14 +550,11 @@ GET    /backup/jetzt/status             Stand der manuellen Sicherung
 
 ```
 GET    /audit-log                   Audit-Log (paginiert)
-GET    /audit-log/artikel/:nr       Log für ein Schmuckstück
 GET    /audit-log/verify            Hash-Kette verifizieren
 
 GET    /users                       Alle Benutzer
-GET    /users/:id                   Einzelner Benutzer
 POST   /users                       Anlegen
 PUT    /users/:id                   Bearbeiten
-POST   /users/:id/reset-password    Passwort zurücksetzen
 DELETE /users/:id                   Löschen
 
 GET    /debug/tables                DB-Tabellen auflisten (ohne gesperrte)

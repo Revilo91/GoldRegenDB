@@ -157,30 +157,3 @@ describe('PUT /api/users/:id (update user)', () => {
     expect(res.body.username).toBe('renamed');
   });
 });
-
-describe('GET /api/users/:id', () => {
-  let app;
-
-  beforeAll(() => {
-    app = buildApp();
-  });
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('returns 404 when user does not exist', async () => {
-    mockQuery.mockResolvedValueOnce({ rows: [] });
-    const res = await request(app).get('/api/users/9999');
-    expect(res.status).toBe(404);
-  });
-
-  it('returns the user without password_hash', async () => {
-    const user = { id: 1, username: 'admin', email: null, role: 'admin', active: true, must_change_password: false, created_at: new Date().toISOString(), last_login: null };
-    mockQuery.mockResolvedValueOnce({ rows: [user] });
-    const res = await request(app).get('/api/users/1');
-    expect(res.status).toBe(200);
-    expect(res.body).not.toHaveProperty('password_hash');
-    expect(res.body.username).toBe('admin');
-  });
-});

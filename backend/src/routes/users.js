@@ -6,7 +6,6 @@ const { validate } = require("../middleware/validate");
 const {
   userCreateSchema,
   userUpdateSchema,
-  resetPasswordSchema,
 } = require("../schemas");
 const { hashPassword } = require("../utils/passwordService");
 
@@ -40,42 +39,6 @@ router.get("/", async (req, res) => {
       message: err.message,
     });
     res.status(500).json({ error: "Fehler beim Laden der Benutzer" });
-  }
-});
-
-/**
- * @swagger
- * /users/{id}:
- *   get:
- *     summary: Einzelnen Benutzer abrufen
- *     description: 'Erfordert Rolle: admin.'
- *     tags: [Benutzerverwaltung]
- *     parameters:
- *       - { name: id, in: path, required: true, schema: { type: integer } }
- *     responses:
- *       200:
- *         description: Benutzer
- *         content: { application/json: { schema: { $ref: '#/components/schemas/AppUser' } } }
- *       401: { $ref: '#/components/responses/Unauthorized' }
- *       403: { $ref: '#/components/responses/Forbidden' }
- *       404: { $ref: '#/components/responses/NotFound' }
- */
-router.get("/:id", async (req, res) => {
-  try {
-    const { rows } = await db.query(
-      "SELECT id, username, email, role, active, must_change_password, created_at, last_login FROM app_users WHERE id = $1",
-      [req.params.id],
-    );
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Benutzer nicht gefunden" });
-    }
-    res.json(rows[0]);
-  } catch (err) {
-    logger.error("USERS", "Fehler beim Laden des Benutzers", {
-      id: req.params.id,
-      message: err.message,
-    });
-    res.status(500).json({ error: "Fehler beim Laden des Benutzers" });
   }
 });
 
@@ -154,7 +117,7 @@ router.post("/", validate(userCreateSchema), async (req, res) => {
  * /users/{id}:
  *   put:
  *     summary: Benutzer aktualisieren (ohne Passwort)
- *     description: 'Für das Passwort siehe POST /users/{id}/reset-password. Erfordert Rolle: admin.'
+ *     description: 'Für das Passwort siehe POST /auth/admin/generate-reset-link. Erfordert Rolle: admin.'
  *     tags: [Benutzerverwaltung]
  *     security:
  *       - cookieAuth: []
@@ -215,67 +178,6 @@ router.put("/:id", validate(userUpdateSchema), async (req, res) => {
       message: err.message,
     });
     res.status(500).json({ error: "Fehler beim Aktualisieren des Benutzers" });
-  }
-});
-
-/**
- * @swagger
- * /users/{id}/reset-password:
- *   post:
- *     summary: Passwort eines Benutzers durch einen Admin zurücksetzen
- *     description: 'Setzt must_change_password=true und hebt eine bestehende Konto-Sperre sowie offene
- *       Self-Service-Reset-Token auf. Erfordert Rolle: admin.'
- *     tags: [Benutzerverwaltung]
- *     security:
- *       - cookieAuth: []
- *         csrfHeader: []
- *       - bearerAuth: []
- *     parameters:
- *       - { name: id, in: path, required: true, schema: { type: integer } }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [newPassword]
- *             properties:
- *               newPassword: { type: string, format: password, minLength: 8 }
- *     responses:
- *       200:
- *         description: Passwort zurückgesetzt
- *       400: { $ref: '#/components/responses/ValidationError' }
- *       401: { $ref: '#/components/responses/Unauthorized' }
- *       403: { $ref: '#/components/responses/Forbidden' }
- *       404: { $ref: '#/components/responses/NotFound' }
- */
-router.post("/:id/reset-password", validate(resetPasswordSchema), async (req, res) => {
-  try {
-    const { newPassword } = req.body;
-    const hashedPassword = await hashPassword(newPassword);
-    // Ein Admin-Reset hebt auch eine Sperre und offene Reset-Token auf
-    const { rowCount } = await db.query(
-      `UPDATE app_users
-          SET password_hash = $1,
-              must_change_password = TRUE,
-              failed_login_attempts = 0,
-              locked_until = NULL,
-              reset_token_hash = NULL,
-              reset_token_expiry = NULL
-        WHERE id = $2`,
-      [hashedPassword, req.params.id],
-    );
-    if (rowCount === 0) {
-      return res.status(404).json({ error: "Benutzer nicht gefunden" });
-    }
-    logger.info("USERS", "Passwort zurückgesetzt", { id: req.params.id });
-    res.json({ message: "Passwort erfolgreich zurückgesetzt" });
-  } catch (err) {
-    logger.error("USERS", "Fehler beim Zurücksetzen des Passworts", {
-      id: req.params.id,
-      message: err.message,
-    });
-    res.status(500).json({ error: "Fehler beim Zurücksetzen des Passworts" });
   }
 });
 

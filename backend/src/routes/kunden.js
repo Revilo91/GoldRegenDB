@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
 const logger = require('../utils/logger');
-const { where } = require('../utils/whereClauseBuilder');
 const { lagereZurueck } = require('../utils/statusUebergaenge');
 const { validate } = require('../middleware/validate');
 const { kundeSchema, restockSelectiveSchema } = require('../schemas');
@@ -33,74 +32,6 @@ router.get('/', async (req, res) => {
   } catch (err) {
     logger.error('KUNDEN', 'Fehler beim Laden der Kunden', { message: err.message });
     res.status(500).json({ error: 'Fehler beim Laden der Kunden' });
-  }
-});
-
-/**
- * @swagger
- * /kunden/{id}:
- *   get:
- *     summary: Einzelnen Kunden abrufen
- *     description: 'Erfordert Rolle: bearbeiter oder admin.'
- *     tags: [Kunden]
- *     parameters:
- *       - { name: id, in: path, required: true, schema: { type: integer } }
- *     responses:
- *       200:
- *         description: Kunde
- *         content: { application/json: { schema: { $ref: '#/components/schemas/Kunde' } } }
- *       401: { $ref: '#/components/responses/Unauthorized' }
- *       403: { $ref: '#/components/responses/Forbidden' }
- *       404: { $ref: '#/components/responses/NotFound' }
- */
-router.get('/:id', async (req, res) => {
-  try {
-    const { rows } = await db.query(
-      'SELECT * FROM "Kunde" WHERE "ID" = $1',
-      [req.params.id]
-    );
-    if (rows.length === 0) {
-      logger.warn('KUNDEN', 'Kunde nicht gefunden', { id: req.params.id });
-      return res.status(404).json({ error: 'Kunde nicht gefunden' });
-    }
-    res.json(rows[0]);
-  } catch (err) {
-    logger.error('KUNDEN', 'Fehler beim Laden des Kunden', { id: req.params.id, message: err.message });
-    res.status(500).json({ error: 'Fehler beim Laden des Kunden' });
-  }
-});
-
-/**
- * @swagger
- * /kunden/{id}/schmuckstuecke:
- *   get:
- *     summary: Beim Kunden ausgelagerte Schmuckstücke
- *     description: 'Erfordert Rolle: bearbeiter oder admin.'
- *     tags: [Kunden]
- *     parameters:
- *       - { name: id, in: path, required: true, schema: { type: integer } }
- *     responses:
- *       200:
- *         description: Schmuckstückliste
- *         content:
- *           application/json:
- *             schema: { type: array, items: { $ref: '#/components/schemas/Schmuckstueck' } }
- *       401: { $ref: '#/components/responses/Unauthorized' }
- *       403: { $ref: '#/components/responses/Forbidden' }
- */
-router.get('/:id/schmuckstuecke', async (req, res) => {
-  try {
-    const builder = where();
-    builder.ausgelagert(parseInt(req.params.id));
-
-    const { rows } = await db.query(
-      `SELECT * FROM "Schmuckstück" ${builder.build()} ORDER BY length("Artikelnummer"), "Artikelnummer"`,
-      builder.getParams()
-    );
-    res.json(rows);
-  } catch (err) {
-    logger.error('KUNDEN', 'Fehler beim Laden der Schmuckstücke für Kunde', { id: req.params.id, message: err.message });
-    res.status(500).json({ error: 'Fehler beim Laden der Schmuckstücke' });
   }
 });
 
@@ -214,48 +145,6 @@ router.put('/:id', validate(kundeSchema), async (req, res) => {
   } catch (err) {
     logger.error('KUNDEN', 'Fehler beim Aktualisieren des Kunden', { id: req.params.id, message: err.message });
     res.status(500).json({ error: 'Fehler beim Aktualisieren des Kunden' });
-  }
-});
-
-/**
- * @swagger
- * /kunden/{id}/restock:
- *   put:
- *     summary: Alle beim Kunden ausgelagerten Artikel zurücklagern
- *     description: 'Setzt Ausgelagert = 0 für alle Artikel dieses Kunden. Erfordert Rolle: bearbeiter oder admin.'
- *     tags: [Kunden]
- *     security:
- *       - cookieAuth: []
- *         csrfHeader: []
- *       - bearerAuth: []
- *     parameters:
- *       - { name: id, in: path, required: true, schema: { type: integer } }
- *     responses:
- *       200:
- *         description: Anzahl zurückgelagerter Artikel
- *         content:
- *           application/json:
- *             schema: { type: object, properties: { message: { type: string } } }
- *       401: { $ref: '#/components/responses/Unauthorized' }
- *       403: { $ref: '#/components/responses/Forbidden' }
- */
-router.put('/:id/restock', async (req, res) => {
-  try {
-    // Befund C7: hier stand builder.ausgelagert(id), das NUR auf
-    // "Ausgelagert" = $1 filtert -- anders als aktivAusgelagert() ohne
-    // Verkauft/Ausschuss. Zwei Folgen:
-    //   1. Ein beim Kunden VERKAUFTES Stück verlor seinen Kundenbezug. Der
-    //      JOIN in inventur.js fand es nicht mehr, wert_verkauft und damit die
-    //      Provisionsbasis des Kunden sank rückwirkend.
-    //   2. "Lieferschein_ID" blieb gesetzt. Das Stück war danach gleichzeitig
-    //      verfügbar UND Position eines Lieferscheins -- es konnte ein zweites
-    //      Mal ausgeliefert werden.
-    const rowCount = await lagereZurueck(db, parseInt(req.params.id));
-    logger.info('KUNDEN', 'Artikel zurückgelagert', { id: req.params.id, anzahl: rowCount });
-    res.json({ message: `${rowCount} Artikel zurückgelagert` });
-  } catch (err) {
-    logger.error('KUNDEN', 'Fehler beim Zurücklagern für Kunde', { id: req.params.id, message: err.message });
-    res.status(500).json({ error: 'Fehler beim Zurücklagern der Artikel' });
   }
 });
 

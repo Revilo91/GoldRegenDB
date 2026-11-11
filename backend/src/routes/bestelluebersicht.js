@@ -117,43 +117,6 @@ router.get('/foto/:fileName', async (req, res) => {
 
 /**
  * @swagger
- * /bestelluebersicht/{id}:
- *   get:
- *     summary: Einzelne Bestellung abrufen
- *     description: 'Erfordert Rolle: bearbeiter oder admin.'
- *     tags: [Bestellübersicht]
- *     parameters:
- *       - { name: id, in: path, required: true, schema: { type: integer } }
- *     responses:
- *       200:
- *         description: Bestellung
- *         content: { application/json: { schema: { $ref: '#/components/schemas/Bestellung' } } }
- *       401: { $ref: '#/components/responses/Unauthorized' }
- *       403: { $ref: '#/components/responses/Forbidden' }
- *       404: { $ref: '#/components/responses/NotFound' }
- */
-router.get('/:id', async (req, res) => {
-  try {
-    const { rows } = await db.query(
-      `SELECT b.*, k.kunde_pseudonym, k.anonymisiert, k.anonymisiert_am, k.name_enc, k.email_enc,
-              k.telefonnummer_enc, k.strasse_enc, k.hausnummer_enc, k.plz_enc, k.ort_enc
-       FROM bestellung b
-       JOIN bestellung_kunde k ON k.id = b.kunde_id
-       WHERE b.id = $1`,
-      [req.params.id]
-    );
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Bestellung nicht gefunden' });
-    }
-    res.json(toBestellungResponse(rows[0]));
-  } catch (err) {
-    logger.error('BESTELLUEBERSICHT', `Fehler beim Laden der Bestellung ID=${req.params.id}`, { message: err.message });
-    res.status(500).json({ error: 'Fehler beim Laden der Bestellung' });
-  }
-});
-
-/**
- * @swagger
  * /bestelluebersicht:
  *   post:
  *     summary: Bestellung anlegen (interner, authentifizierter Bereich)

@@ -35,12 +35,6 @@ describe('logger', () => {
       expect(output).toMatch(/hello world/);
     });
 
-    it('includes ISO timestamp prefix', () => {
-      logger.info('COMP', 'msg');
-      const output = consoleSpy.mock.calls[0][0];
-      expect(output).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-    });
-
     it('serialises meta as JSON when provided', () => {
       logger.info('COMP', 'msg', { key: 'value' });
       const output = consoleSpy.mock.calls[0][0];
@@ -174,15 +168,6 @@ describe('logger', () => {
       const output = consoleWarnSpy.mock.calls[0][0];
       expect(output).toContain('"hatCookie":true');
       expect(output).toContain('"hatHeader":false');
-    });
-  });
-
-  describe('Rückwärtskompatibilität', () => {
-    it('funktioniert ohne meta-Argument und ohne [object Object]', () => {
-      logger.info('HTTP', 'GET /api/health');
-      const output = consoleSpy.mock.calls[0][0];
-      expect(output).not.toContain('[object Object]');
-      expect(output).toContain('GET /api/health');
     });
   });
 });

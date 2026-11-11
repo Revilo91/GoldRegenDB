@@ -28,20 +28,9 @@
   gap: 6px;
 }
 
-.schmuckstuecke-mt-12-flex-gap-8 {
-  margin-top: 12px;
-  display: flex;
-  gap: 8px;
-}
-
 .schmuckstuecke-cols-1fr-1fr-1fr-120-ai-end {
   grid-template-columns: 1fr 1fr 1fr 120px;
   align-items: end;
-}
-
-.schmuckstuecke-flex-ai-center {
-  display: flex;
-  align-items: center;
 }
 
 .schmuckstuecke-mt-16 {

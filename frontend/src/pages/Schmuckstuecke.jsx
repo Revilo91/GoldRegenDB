@@ -1,26 +1,11 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { parseZahlOderNull, formatEur } from "../utils/zahlen";
-import { statusBadge, statusVon, STATUS, istWahr } from "../utils/status";
+import { formatEur } from "../utils/zahlen";
+import { statusBadge, statusVon, STATUS } from "../utils/status";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faStar as faRegularStar } from "@fortawesome/free-regular-svg-icons";
-import {
-  faHashtag,
-  faPen,
-  faTrash,
-  faPlus,
-  faBoxOpen,
-  faMagnifyingGlass,
-  faEuroSign,
-  faPaperclip,
-  faCopy,
-  faList,
-  faTableList,
-  faTableCellsLarge,
-} from "@fortawesome/free-solid-svg-icons";
+import { faList, faTableList, faTableCellsLarge } from "@fortawesome/free-solid-svg-icons";
 import { api } from "../api";
 import DataTable from "../components/DataTable";
-import PhotoUpload from "../components/PhotoUpload";
 import TableToolbar from "../components/TableToolbar";
 import StatusChips from "../components/StatusChips";
 import SchmuckstueckModal from "../components/SchmuckstueckModal";
@@ -36,108 +21,38 @@ import Etiketten from "./Etiketten";
 import { useToast } from "../components/Toast";
 import { STATUS_ALLE, statusListenParams } from "../utils/statusFilter";
 import { naechsteVorlagenNummer, naechstesExemplar } from "../utils/artikelnummer";
-import { produktartCodeVon, zeigtFeldgruppe } from "../utils/produktartFelder";
-
-const HERSTELLER_OPTIONS = [
-  { code: "M", label: "Marina" },
-  { code: "S", label: "Saskia" },
-];
-
-const createRowId = () =>
-  `row-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-
-const createEmptyMehrfachRow = () => ({
-  _rowId: createRowId(),
-  Artikelnummer: "",
-  Name: "",
-  Art: "",
-  Material: "",
-  Farbe: "",
-  Verkaufspreis: 0,
-  Herstellungskosten: 0,
-  Form: "",
-  Fassung: "",
-});
-
-// Die Zahlenfelder halten während der Eingabe den rohen Text, damit beim Tippen
-// von "12,50" nicht nach dem Komma der Wert wegspringt. Erst beim Speichern wird
-// normalisiert: leer oder unlesbar ergibt 0, nicht NaN. parseFloat("") war NaN,
-// und JSON.stringify macht daraus null – das landete als explizites NULL in der
-// Datenbank und löschte den Preis stillschweigend (Befund D1/D2).
-const ZAHLENFELDER = [
-  "Verkaufspreis",
-  "Herstellungskosten",
-  "Grösse",
-  "Länge",
-  "Anhänger_Grösse",
-];
-
-const normalisierteZahlenfelder = (form) =>
-  Object.fromEntries(
-    ZAHLENFELDER.filter((feld) => feld in form).map((feld) => [
-      feld,
-      parseZahlOderNull(form[feld], 0),
-    ]),
-  );
-
-// Beschreibende Felder, die beim Anlegen aus einer Vorlage mitkommen. Bewusst
-// eine Positivliste: ID, Datum, Belege, Status und Foto gehören dem Original.
-const KLONBARE_FELDER = [
-  "Name",
-  "Art",
-  "Material",
-  "Farbe",
-  "Form",
-  "Fassung",
-  "Länge",
-  "Grösse",
-  "Inhalt_Material",
-  "Inhalt_Farbe",
-  "Inhalt_Farbakzent",
-  "Inhalt_Zusatzmaterial",
-  "Anhänger",
-  "Anhänger_Fassung",
-  "Anhänger_Form",
-  "Anhänger_Farbe",
-  "Anhänger_Grösse",
-  "Anhänger_Inhalt_Material",
-  "Anhänger_Inhalt_Farbe",
-  "Anhänger_Inhalt_Farbakzente",
-  "Anhänger_Inhalt_Zusatzmaterial",
-  "Zwischenstück",
-  "Herstellungskosten",
-  "Verkaufspreis",
-];
-
-const klonbareFelderVon = (item) =>
-  Object.fromEntries(
-    KLONBARE_FELDER.map((feld) => [
-      feld,
-      item[feld] ?? (ZAHLENFELDER.includes(feld) ? 0 : ""),
-    ]),
-  );
+import {
+  BULK_ZEILE,
+  createRowId,
+  createEmptyMehrfachRow,
+  normalisierteZahlenfelder,
+  klonbareFelderVon,
+  fotoBasis,
+  normalizeMehrfachArtikelnummer,
+  nachArtikelnummer,
+} from "../utils/schmuckstuecke";
+import SchmuckstueckFormular from "./schmuckstuecke/SchmuckstueckFormular";
+import BulkErfassungModal from "./schmuckstuecke/BulkErfassungModal";
 
 // Pfeiltasten und Esc gehören einem Eingabefeld, solange der Fokus darin liegt.
 const EINGABEFELD = 'input, select, textarea, [contenteditable=""], [contenteditable="true"]';
 const liegtImEingabefeld = (element) => element instanceof Element && element.closest(EINGABEFELD) !== null;
 
-// Wert von `editing`, wenn das große Formular eine Zeile der Vorlagen-Tabelle bearbeitet.
-const BULK_ZEILE = "bulk-zeile";
+const ANSICHTEN = [
+  { wert: ANSICHT.LISTE, label: "Listenansicht", titel: "Liste", icon: faList },
+  { wert: ANSICHT.TABELLE, label: "Tabellenansicht", titel: "Tabelle", icon: faTableList },
+  { wert: ANSICHT.RASTER, label: "Rasteransicht", titel: "Foto-Raster", icon: faTableCellsLarge },
+];
 
-// Foto und Artikelnummer teilen sich die Basisnummer: MHO127_1 und MHO127_2 haben ein Foto.
-const fotoBasis = (artikelnummer) => String(artikelnummer).split("_")[0];
+const TABS = [
+  { wert: "schmuckstuecke", label: "Schmuckstücke" },
+  { wert: "etiketten", label: "Etiketten" },
+];
 
-const normalizeMehrfachArtikelnummer = (value) => {
-  const normalized = String(value || "").trim().toUpperCase();
-  if (!normalized) return "";
+// Die Tabelle sortiert nach Artikelnummer; die Sortierung stand schon immer fest (Befund G14).
+const STANDARD_SORTIERUNG = { key: "Artikelnummer", direction: "asc" };
 
-  // Wenn nur Basisnummer eingegeben wurde, beim Speichern automatisch _1 setzen.
-  if (/^[A-Z]{3}\d{3}$/.test(normalized)) {
-    return `${normalized}_1`;
-  }
-
-  return normalized;
-};
+const textSpalte = (key, label) => ({ key, label, className: "hide-on-mobile", sortable: true });
 
 export default function Schmuckstuecke() {
   const toast = useToast();
@@ -153,13 +68,9 @@ export default function Schmuckstuecke() {
   const [filters, setFilters] = useState({});
   const [status, setStatus] = useState(STATUS_ALLE);
   const [statusZahlen, setStatusZahlen] = useState(null);
-  const [filterOptions, setFilterOptions] = useState({});
   // Hersteller-, Grundmaterial- und Produktart-Codes kommen aus
   // backend/src/utils/constants.js und reisen über die Filter-Optionen mit.
-  // Vorher lagen sie hier als eigene Kopie und im Produktart-Dropdown ein
-  // drittes Mal hartcodiert (Befund G22).
-  const grundmaterialOptionen = filterOptions.grundmaterialien || [];
-  const produktartOptionen = filterOptions.produktarten || [];
+  const [filterOptions, setFilterOptions] = useState({});
   const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
@@ -171,9 +82,6 @@ export default function Schmuckstuecke() {
     setGewaehlteAnsicht(neu);
     schreibeAnsicht(neu);
   };
-  // Konstant: setSortConfig wurde nie aufgerufen, die Sortierung stand also
-  // schon immer fest auf diesem Wert (Befund G14).
-  const sortConfig = { key: "Artikelnummer", direction: "asc" };
   // Vorschau der nächsten freien Artikelnummer, gespeichert mit dem Präfix,
   // für das sie geladen wurde
   const [artikelnummerVorschau, setArtikelnummerVorschau] = useState({
@@ -205,45 +113,33 @@ export default function Schmuckstuecke() {
   const [ladeZaehler, setLadeZaehler] = useState(0);
   const [bulkRows, setBulkRows] = useState([]);
 
-  const buildPrefixFromCodes = (hersteller, grundmaterial, produktart) => {
-    if (!hersteller || !grundmaterial || !produktart) return "";
-    return `${hersteller}${grundmaterial}${produktart}`;
-  };
-
   // Vorher feuerte jeder Tastendruck einen eigenen Request, ohne Debounce,
   // ohne Abbruch: antwortete Request 2 nach Request 4, ueberschrieb setData
   // die neueren Treffer, und das finally des ersten setzte loading=false,
   // waehrend der letzte noch lief (Befund G8). Das Muster hier ist das aus
   // Etiketten.jsx, das es von Anfang an richtig gemacht hat.
   //
-  // neuLaden() ist der Ersatz fuer das frueher direkt aufgerufene load():
-  // es erhoeht nur einen Zaehler, den Effekt unten als Abhaengigkeit hat –
-  // so laeuft auch ein Neuladen nach Speichern/Loeschen durch dieselbe
-  // Abbruchlogik.
+  // neuLaden() erhoeht nur einen Zaehler, den der Lade-Effekt unten als
+  // Abhaengigkeit hat – so laeuft auch ein Neuladen nach Speichern/Loeschen
+  // durch dieselbe Abbruchlogik.
   const neuLaden = () => setLadeZaehler((n) => n + 1);
 
-  const handleDelete = async (nr) => {
-    if (!confirm(`Schmuckstück ${nr} wirklich löschen?`)) return;
+  // Löschen und Zurücklagern: erst bestätigen, dann Aufruf, dann Liste neu laden
+  const stueckAktion = async (nr, verb, aufruf, { schliesseFormular = false } = {}) => {
+    if (!confirm(`Schmuckstück ${nr} wirklich ${verb}?`)) return;
     try {
-      await api.deleteSchmuckstueck(nr);
+      await aufruf(nr);
       setSelected(null);
-      setEditing(null);
+      if (schliesseFormular) setEditing(null);
       neuLaden();
     } catch (err) {
       toast.fehler(err.message);
     }
   };
-
-  const handleZuruecklagern = async (nr) => {
-    if (!confirm(`Schmuckstück ${nr} wirklich zurücklagern?`)) return;
-    try {
-      await api.zuruecklagernSchmuckstueck(nr);
-      setSelected(null);
-      neuLaden();
-    } catch (err) {
-      toast.fehler(err.message);
-    }
-  };
+  const handleDelete = (nr) =>
+    stueckAktion(nr, "löschen", (n) => api.deleteSchmuckstueck(n), { schliesseFormular: true });
+  const handleZuruecklagern = (nr) =>
+    stueckAktion(nr, "zurücklagern", (n) => api.zuruecklagernSchmuckstueck(n));
 
   const handleSave = async ({ closeAfterSave = true } = {}) => {
     // Ohne diese Sperre erzeugte ein Doppelklick auf "Speichern + Weiter" zwei
@@ -453,21 +349,13 @@ export default function Schmuckstuecke() {
           search: input,
         });
 
+        const suffixVon = (row) =>
+          parseInt(String(row.Artikelnummer).split("_")[1] || "0", 10);
         const matchingItems = (result?.data || [])
           .filter((row) =>
             String(row.Artikelnummer || "").startsWith(`${input}_`),
           )
-          .sort((a, b) => {
-            const aSuffix = parseInt(
-              String(a.Artikelnummer).split("_")[1] || "0",
-              10,
-            );
-            const bSuffix = parseInt(
-              String(b.Artikelnummer).split("_")[1] || "0",
-              10,
-            );
-            return aSuffix - bSuffix;
-          });
+          .sort((a, b) => suffixVon(a) - suffixVon(b));
 
         if (matchingItems.length > 0) {
           item = await api.getSchmuckstueck(matchingItems[0].Artikelnummer);
@@ -523,6 +411,12 @@ export default function Schmuckstuecke() {
     }
   };
 
+  const BULK_FEHLERLISTEN = [
+    ["invalidArtikelnummern", "Ungültige Artikelnummern:"],
+    ["existingArtikelnummern", "Diese Artikelnummern existieren bereits:"],
+    ["duplicateArtikelnummern", "Diese Artikelnummern wurden doppelt eingegeben:"],
+  ];
+
   const handleBulkSave = async () => {
     const items = bulkRows
       .map((row) => {
@@ -550,25 +444,10 @@ export default function Schmuckstuecke() {
       neuLaden();
     } catch (err) {
       const payload = err.payload || {};
-      if (Array.isArray(payload.invalidArtikelnummern)) {
-        toast.fehler(
-          `Ungültige Artikelnummern:\n${payload.invalidArtikelnummern.join("\n")}`,
-        );
-        return;
-      }
-      if (Array.isArray(payload.existingArtikelnummern)) {
-        toast.fehler(
-          `Diese Artikelnummern existieren bereits:\n${payload.existingArtikelnummern.join("\n")}`,
-        );
-        return;
-      }
-      if (Array.isArray(payload.duplicateArtikelnummern)) {
-        toast.fehler(
-          `Diese Artikelnummern wurden doppelt eingegeben:\n${payload.duplicateArtikelnummern.join("\n")}`,
-        );
-        return;
-      }
-      toast.fehler(err.message);
+      const liste = BULK_FEHLERLISTEN.find(([feld]) => Array.isArray(payload[feld]));
+      toast.fehler(
+        liste ? `${liste[1]}\n${payload[liste[0]].join("\n")}` : err.message,
+      );
     } finally {
       setBulkSaving(false);
     }
@@ -728,14 +607,6 @@ export default function Schmuckstuecke() {
     return kunde ? kunde.Name : `Kundennummer ${id}`;
   };
 
-  const getLengthUnit = ({ Artikelnummer } = {}) => {
-    const produktartCode = String(Artikelnummer || "").charAt(2).toUpperCase();
-    if (produktartCode === "O") return "mm";
-    if (produktartCode === "H") return "cm";
-
-    return "cm";
-  };
-
   const p = data.pagination;
   // Breit: Stück-Detail als Panel neben der Liste; schmal: als Fenster
   const panelModus = useMediaQuery(PANEL_QUERY);
@@ -744,40 +615,7 @@ export default function Schmuckstuecke() {
   const isForegroundModalOpen =
     (selected !== null && !panelModus) || editing !== null;
 
-  // Welche Feldgruppen das Formular je Produktart zeigt (Werte ausgeblendeter
-  // Felder bleiben im Formular erhalten und werden mitgespeichert)
-  const formProduktart = produktartCodeVon(form);
-  const zeigeLaenge = zeigtFeldgruppe(formProduktart, "laenge");
-  const zeigeAnhaenger = zeigtFeldgruppe(formProduktart, "anhaenger");
-  const zeigeZwischenstueck = zeigtFeldgruppe(formProduktart, "zwischenstueck");
-
-  const sortedData = useMemo(() => {
-    let sortableData = [...data.data];
-    if (sortConfig.key !== null) {
-      sortableData.sort((a, b) => {
-        let aValue = a[sortConfig.key];
-        let bValue = b[sortConfig.key];
-
-        if (sortConfig.key === "Ausgelagert") {
-          aValue = getKundenName(a.Ausgelagert).toUpperCase();
-          bValue = getKundenName(b.Ausgelagert).toUpperCase();
-          if (a.Ausgelagert === 0) aValue = "";
-          if (b.Ausgelagert === 0) bValue = "";
-        }
-
-        if (sortConfig.key === "Artikelnummer") {
-          return sortConfig.direction === "asc"
-            ? aValue.localeCompare(bValue, undefined, { numeric: true })
-            : bValue.localeCompare(aValue, undefined, { numeric: true });
-        }
-
-        if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-    return sortableData;
-  }, [data.data, sortConfig, kunden]);
+  const sortedData = useMemo(() => [...data.data].sort(nachArtikelnummer), [data.data]);
 
   // Die Tabelle sortiert nach dem angeklickten Spaltenkopf selbst; Pfeiltasten folgen dieser sichtbaren Reihenfolge.
   // Liste und Raster zeigen die Seitenreihenfolge (sortedData).
@@ -890,52 +728,36 @@ export default function Schmuckstuecke() {
               + Neues Schmuckstück
             </button>
             <div className="ansicht-umschalter" role="group" aria-label="Ansicht">
-              <button
-                type="button"
-                className={`btn btn-sm ${ansicht === ANSICHT.LISTE ? "btn-primary" : "btn-secondary"}`}
-                aria-label="Listenansicht"
-                title="Liste"
-                aria-pressed={ansicht === ANSICHT.LISTE}
-                onClick={() => waehleAnsicht(ANSICHT.LISTE)}>
-                <FontAwesomeIcon icon={faList} />
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${ansicht === ANSICHT.TABELLE ? "btn-primary" : "btn-secondary"}`}
-                aria-label="Tabellenansicht"
-                title="Tabelle"
-                aria-pressed={ansicht === ANSICHT.TABELLE}
-                onClick={() => waehleAnsicht(ANSICHT.TABELLE)}>
-                <FontAwesomeIcon icon={faTableList} />
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${ansicht === ANSICHT.RASTER ? "btn-primary" : "btn-secondary"}`}
-                aria-label="Rasteransicht"
-                title="Foto-Raster"
-                aria-pressed={ansicht === ANSICHT.RASTER}
-                onClick={() => waehleAnsicht(ANSICHT.RASTER)}>
-                <FontAwesomeIcon icon={faTableCellsLarge} />
-              </button>
+              {ANSICHTEN.map(({ wert, label, titel, icon }) => (
+                <button
+                  key={wert}
+                  type="button"
+                  className={`btn btn-sm ${ansicht === wert ? "btn-primary" : "btn-secondary"}`}
+                  aria-label={label}
+                  title={titel}
+                  aria-pressed={ansicht === wert}
+                  onClick={() => waehleAnsicht(wert)}>
+                  <FontAwesomeIcon icon={icon} />
+                </button>
+              ))}
             </div>
           </div>
         )}
       </div>
 
       <div className="schmuckstuecke-flex-gap-8-mb-16">
-        <button
-          className={`btn btn-sm ${activeTab === "schmuckstuecke" ? "btn-primary" : "btn-secondary"}`}
-          onClick={() => setActiveTab("schmuckstuecke")}>
-          Schmuckstücke
-        </button>
-        <button
-          className={`btn btn-sm ${activeTab === "etiketten" ? "btn-primary" : "btn-secondary"}`}
-          onClick={() => setActiveTab("etiketten")}>
-          Etiketten
-        </button>
+        {TABS.map(({ wert, label }) => (
+          <button
+            key={wert}
+            className={`btn btn-sm ${activeTab === wert ? "btn-primary" : "btn-secondary"}`}
+            onClick={() => setActiveTab(wert)}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      {activeTab === "schmuckstuecke" && (
+      {activeTab === "schmuckstuecke" ? (
+        <>
       <div ref={kopfRef} className={kopfFixiert ? "schmuck-kopf schmuck-kopf--fixiert" : "schmuck-kopf"}>
       <TableToolbar
         search={search}
@@ -959,7 +781,7 @@ export default function Schmuckstuecke() {
                 setPage(1);
               }}>
               <option value="">Alle Arten</option>
-              {produktartOptionen.map((option) => (
+              {(filterOptions.produktarten || []).map((option) => (
                 <option key={option.code} value={option.code}>
                   {option.label}
                 </option>
@@ -999,10 +821,7 @@ export default function Schmuckstuecke() {
         }}
       />
       </div>
-      )}
 
-      {activeTab === "schmuckstuecke" ? (
-        <>
       <div className={panelModus ? "schmuck-split" : undefined}>
       <div className="card">
         <div className="card-body">
@@ -1040,7 +859,7 @@ export default function Schmuckstuecke() {
             <DataTable
               data={sortedData}
               getRowKey={(r) => r.Artikelnummer}
-              defaultSort={{ key: "Artikelnummer", direction: "asc" }}
+              defaultSort={STANDARD_SORTIERUNG}
               onRowClick={(s) => setSelected(s)}
               onSortedChange={setTabellenReihenfolge}
               rowProps={(r) =>
@@ -1084,36 +903,11 @@ export default function Schmuckstuecke() {
                     );
                   },
                 },
-                {
-                  key: "Grundmaterial",
-                  label: "Grundmaterial",
-                  className: "hide-on-mobile",
-                  sortable: true,
-                },
-                {
-                  key: "Art",
-                  label: "Art",
-                  className: "hide-on-mobile",
-                  sortable: true,
-                },
-                {
-                  key: "Material",
-                  label: "Material",
-                  className: "hide-on-mobile",
-                  sortable: true,
-                },
-                {
-                  key: "Farbe",
-                  label: "Farbe",
-                  className: "hide-on-mobile",
-                  sortable: true,
-                },
-                {
-                  key: "Inhalt_Farbe",
-                  label: "Farbe Inhalt",
-                  className: "hide-on-mobile",
-                  sortable: true,
-                },
+                textSpalte("Grundmaterial", "Grundmaterial"),
+                textSpalte("Art", "Art"),
+                textSpalte("Material", "Material"),
+                textSpalte("Farbe", "Farbe"),
+                textSpalte("Inhalt_Farbe", "Farbe Inhalt"),
                 {
                   key: "Verkaufspreis",
                   label: "Preis",
@@ -1124,12 +918,9 @@ export default function Schmuckstuecke() {
                 {
                   key: "Status",
                   label: "Status",
-                  // Nicht sortierbar: das Backend liefert kein Feld "Status"
-                  // (schmuckstuecke.js gibt * plus Grundmaterial zurück), der
-                  // Wert wird hier erst aus Verkauft/Ausschuss/Ausgelagert
-                  // gebildet. row["Status"] war für jede Zeile undefined, der
-                  // Klick auf den Header tat also sichtbar nichts (Befund G13).
-                  // Serverseitiges Sortieren müsste das Feld mitliefern.
+                  // Nicht sortierbar: das Backend liefert kein Feld "Status", der
+                  // Wert wird hier erst aus Verkauft/Ausschuss/Ausgelagert gebildet
+                  // (Befund G13).
                   sortable: false,
                   render: (r) => {
                     // Ausgelagerte Stuecke haben in dieser Liste eine eigene
@@ -1192,1101 +983,37 @@ export default function Schmuckstuecke() {
       )}
 
       {bulkModalOpen && (
-        <div className="modal-overlay">
-          <div
-            className="modal modal-lg schmuckstuecke-maxw-100"
-            onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>
-                <FontAwesomeIcon icon={faPlus} /> Schmuckstücke aus Vorlage
-                anlegen
-              </h3>
-              <button
-                className="modal-close"
-                onClick={cancelBulkCreate}>
-                ×
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="form-section">
-                <h4>
-                  <FontAwesomeIcon icon={faCopy} /> Vorlage
-                </h4>
-                <div
-                  className="form-row schmuckstuecke-cols-1fr-220-ai-end">
-                  <div className="form-group">
-                    <label>Bestehendes Schmuckstück laden</label>
-                    <input
-                      className="form-control"
-                      value={bulkTemplateArtikelnummer}
-                      onChange={(e) =>
-                        setBulkTemplateArtikelnummer(
-                          e.target.value.toUpperCase(),
-                        )
-                      }
-                      placeholder="z.B. MBH001_1"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <button
-                      className="btn btn-secondary"
-                      onClick={loadBulkTemplate}
-                      disabled={bulkLoadingTemplate}>
-                      {bulkLoadingTemplate
-                        ? "Lade Vorlage..."
-                        : "Als neue Zeile übernehmen"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-section">
-                <h4>
-                  <FontAwesomeIcon icon={faHashtag} /> Tabelle für
-                  Mehrfach-Erfassung
-                </h4>
-                <div className="table-container schmuckstuecke-ox-auto">
-                  <DataTable
-                    className="table"
-                    data={bulkRows}
-                    defaultSort={{ key: null, direction: "asc" }}
-                    getRowKey={(row) => row._rowId}
-                    columns={[
-                      {
-                        key: "rownum",
-                        label: "#",
-                        render: (row) =>
-                          bulkRows.findIndex((r) => r._rowId === row._rowId) +
-                          1,
-                      },
-                      {
-                        key: "Artikelnummer",
-                        label: "Artikelnummer*",
-                        render: (row) => {
-                          return (
-                            <input
-                              className="form-control"
-                              value={row.Artikelnummer || ""}
-                              onChange={(e) =>
-                                setBulkRowValue(
-                                  row._rowId,
-                                  "Artikelnummer",
-                                  e.target.value.toUpperCase(),
-                                )
-                              }
-                              placeholder="MBH001_2"
-                            />
-                          );
-                        },
-                      },
-                      {
-                        key: "Name",
-                        label: "Name",
-                        render: (row) => {
-                          return (
-                            <input
-                              className="form-control"
-                              value={row.Name || ""}
-                              onChange={(e) =>
-                                setBulkRowValue(
-                                  row._rowId,
-                                  "Name",
-                                  e.target.value,
-                                )
-                              }
-                            />
-                          );
-                        },
-                      },
-                      {
-                        key: "Art",
-                        label: "Art",
-                        render: (row) => {
-                          return (
-                            <input
-                              list="bulk-arten-list"
-                              className="form-control"
-                              value={row.Art || ""}
-                              onChange={(e) =>
-                                setBulkRowValue(
-                                  row._rowId,
-                                  "Art",
-                                  e.target.value,
-                                )
-                              }
-                            />
-                          );
-                        },
-                      },
-                      {
-                        key: "Material",
-                        label: "Material",
-                        render: (row) => {
-                          return (
-                            <input
-                              list="bulk-material-list"
-                              className="form-control"
-                              value={row.Material || ""}
-                              onChange={(e) =>
-                                setBulkRowValue(
-                                  row._rowId,
-                                  "Material",
-                                  e.target.value,
-                                )
-                              }
-                            />
-                          );
-                        },
-                      },
-                      {
-                        key: "Farbe",
-                        label: "Farbe",
-                        render: (row) => {
-                          return (
-                            <input
-                              list="bulk-farbe-list"
-                              className="form-control"
-                              value={row.Farbe || ""}
-                              onChange={(e) =>
-                                setBulkRowValue(
-                                  row._rowId,
-                                  "Farbe",
-                                  e.target.value,
-                                )
-                              }
-                            />
-                          );
-                        },
-                      },
-                      {
-                        key: "Verkaufspreis",
-                        label: "VK (€)",
-                        render: (row) => {
-                          return (
-                            <input
-                              className="form-control"
-                              type="number"
-                              step="0.01"
-                              value={row.Verkaufspreis || 0}
-                              onChange={(e) =>
-                                setBulkRowValue(
-                                  row._rowId,
-                                  "Verkaufspreis",
-                                  parseFloat(e.target.value) || 0,
-                                )
-                              }
-                            />
-                          );
-                        },
-                      },
-                      {
-                        key: "Form",
-                        label: "Form",
-                        render: (row) => {
-                          return (
-                            <input
-                              list="bulk-formen-list"
-                              className="form-control"
-                              value={row.Form || ""}
-                              onChange={(e) =>
-                                setBulkRowValue(
-                                  row._rowId,
-                                  "Form",
-                                  e.target.value,
-                                )
-                              }
-                            />
-                          );
-                        },
-                      },
-                      {
-                        key: "Fassung",
-                        label: "Fassung",
-                        render: (row) => {
-                          return (
-                            <input
-                              list="bulk-fassung-list"
-                              className="form-control"
-                              value={row.Fassung || ""}
-                              onChange={(e) =>
-                                setBulkRowValue(
-                                  row._rowId,
-                                  "Fassung",
-                                  e.target.value,
-                                )
-                              }
-                            />
-                          );
-                        },
-                      },
-                      {
-                        key: "aktion",
-                        label: "Aktion",
-                        render: (row) => {
-                          return (
-                            <div className="schmuckstuecke-flex-gap-6">
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => openBulkRowForm(row)}
-                                disabled={bulkSaving}
-                                title="Alle Felder bearbeiten">
-                                <FontAwesomeIcon icon={faPen} />
-                              </button>
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => duplicateBulkRow(row._rowId)}
-                                disabled={bulkSaving}
-                                title="Zeile kopieren">
-                                <FontAwesomeIcon icon={faCopy} />
-                              </button>
-                              <button
-                                className="btn btn-danger btn-sm"
-                                onClick={() => removeBulkRow(row._rowId)}
-                                disabled={bulkSaving}
-                                title="Zeile löschen">
-                                <FontAwesomeIcon icon={faTrash} />
-                              </button>
-                            </div>
-                          );
-                        },
-                      },
-                    ]}
-                  />
-                </div>
-                {bulkRows.length === 0 && (
-                  <p className="schmuckstuecke-mt-12">
-                    Noch keine Zeile. Lade oben ein bestehendes Schmuckstück
-                    als Vorlage.
-                  </p>
-                )}
-              </div>
-
-              <datalist id="bulk-arten-list">
-                {filterOptions.arten?.map((a) => (
-                  <option key={a} value={a} />
-                ))}
-              </datalist>
-              <datalist id="bulk-material-list">
-                {filterOptions.materialien?.map((m) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
-              <datalist id="bulk-farbe-list">
-                {filterOptions.farben?.map((f) => (
-                  <option key={f} value={f} />
-                ))}
-              </datalist>
-              <datalist id="bulk-formen-list">
-                {filterOptions.formen?.map((f) => (
-                  <option key={f} value={f} />
-                ))}
-              </datalist>
-              <datalist id="bulk-fassung-list">
-                {filterOptions.fassungen?.map((f) => (
-                  <option key={f} value={f} />
-                ))}
-              </datalist>
-            </div>
-            <div className="modal-footer">
-              <button
-                className="btn btn-secondary"
-                onClick={cancelBulkCreate}
-                disabled={bulkSaving}>
-                Abbrechen
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={handleBulkSave}
-                disabled={bulkSaving || bulkRows.length === 0}>
-                {bulkSaving ? "Speichere..." : "Mehrfach speichern"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <BulkErfassungModal
+          rows={bulkRows}
+          vorlage={bulkTemplateArtikelnummer}
+          setVorlage={setBulkTemplateArtikelnummer}
+          ladeVorlage={loadBulkTemplate}
+          laedtVorlage={bulkLoadingTemplate}
+          saving={bulkSaving}
+          filterOptions={filterOptions}
+          onAbbrechen={cancelBulkCreate}
+          onSpeichern={handleBulkSave}
+          onWert={setBulkRowValue}
+          onZeileBearbeiten={openBulkRowForm}
+          onZeileKopieren={duplicateBulkRow}
+          onZeileLoeschen={removeBulkRow}
+        />
       )}
 
       {editing !== null && (
-        <div className="modal-overlay">
-          <div
-            className="modal schmuckstuecke-form-modal"
-            onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>
-                {editing === "new" ? (
-                  <>
-                    <FontAwesomeIcon icon={faPlus} /> Neues Schmuckstück
-                    {nextArtikelnummerPreview && (
-                      <span className="schmuckstuecke-form-nummer">
-                        {nextArtikelnummerPreview}
-                        {form.Anzahl > 1 && ` × ${form.Anzahl}`}
-                      </span>
-                    )}
-                  </>
-                ) : editing === BULK_ZEILE ? (
-                  <>
-                    <FontAwesomeIcon icon={faPen} /> Alle Felder:{" "}
-                    {form.Artikelnummer || "ohne Artikelnummer"}
-                  </>
-                ) : (
-                  <>
-                    <FontAwesomeIcon icon={faPen} /> {editing} bearbeiten
-                  </>
-                )}
-              </h3>
-              <button
-                className="modal-close"
-                onClick={editing === BULK_ZEILE ? cancelBulkRowForm : () => setEditing(null)}>
-                ×
-              </button>
-            </div>
-            <div className="modal-body schmuckstuecke-form-body">
-              <div className="form-section">
-                <h4>
-                  <FontAwesomeIcon icon={faHashtag} /> Artikelnummer
-                </h4>
-                {editing === "new" ? (
-                  <>
-                    <div
-                      className="form-row schmuckstuecke-cols-1fr-1fr-1fr-120-ai-end">
-                      <div className="form-group">
-                        <label>Hersteller*</label>
-                        <select
-                          className="form-control"
-                          value={form.HerstellerCode || ""}
-                          onChange={(e) => {
-                            const hersteller = e.target.value;
-                            const artikelnummer = buildPrefixFromCodes(
-                              hersteller,
-                              form.GrundmaterialCode,
-                              form.ProduktartCode,
-                            );
-                            setForm({
-                              ...form,
-                              HerstellerCode: hersteller,
-                              Artikelnummer: artikelnummer,
-                            });
-                          }}>
-                          <option value="">Hersteller</option>
-                          {HERSTELLER_OPTIONS.map((option) => (
-                            <option key={option.code} value={option.code}>
-                              {option.code} - {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label>Grundmaterial*</label>
-                        <select
-                          className="form-control"
-                          value={form.GrundmaterialCode || ""}
-                          onChange={(e) => {
-                            const grundmaterial = e.target.value;
-                            const artikelnummer = buildPrefixFromCodes(
-                              form.HerstellerCode,
-                              grundmaterial,
-                              form.ProduktartCode,
-                            );
-                            setForm({
-                              ...form,
-                              GrundmaterialCode: grundmaterial,
-                              Artikelnummer: artikelnummer,
-                            });
-                          }}>
-                          <option value="">Grundmaterial</option>
-                          {grundmaterialOptionen.map((option) => (
-                            <option key={option.code} value={option.code}>
-                              {option.code} - {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label>Produktart*</label>
-                        <select
-                          className="form-control"
-                          value={form.ProduktartCode || ""}
-                          onChange={(e) => {
-                            const produktart = e.target.value;
-                            const artikelnummer = buildPrefixFromCodes(
-                              form.HerstellerCode,
-                              form.GrundmaterialCode,
-                              produktart,
-                            );
-                            setForm({
-                              ...form,
-                              ProduktartCode: produktart,
-                              Artikelnummer: artikelnummer,
-                            });
-                          }}>
-                          <option value="">Produktart</option>
-                          {produktartOptionen.map((option) => (
-                            <option key={option.code} value={option.code}>
-                              {option.code} - {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label>Anzahl</label>
-                        <input
-                          className="form-control"
-                          placeholder=" "
-                          type="number"
-                          min="1"
-                          value={form.Anzahl || 1}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              Anzahl: parseInt(e.target.value) || 1,
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Artikelnummer*</label>
-                      <input
-                        className="form-control"
-                        placeholder=" "
-                        disabled
-                        value={form.Artikelnummer || ""}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="form-section">
-                <h4>
-                  <FontAwesomeIcon icon={faBoxOpen} /> Basis-Informationen
-                </h4>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Name</label>
-                    <input
-                      className="form-control"
-                      placeholder=" "
-                      value={form.Name || ""}
-                      onChange={(e) =>
-                        setForm({ ...form, Name: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Art</label>
-                    <input
-                      list="arten-list"
-                      className="form-control"
-                      placeholder=" "
-                      value={form.Art || ""}
-                      onChange={(e) =>
-                        setForm({ ...form, Art: e.target.value })
-                      }
-                    />
-                    <datalist id="arten-list">
-                      {filterOptions.arten?.map((a) => (
-                        <option key={a} value={a} />
-                      ))}
-                    </datalist>
-                  </div>
-                  <div className="form-group">
-                    <label>Material</label>
-                    <input
-                      list="material-list"
-                      className="form-control"
-                      placeholder=" "
-                      value={form.Material || ""}
-                      onChange={(e) =>
-                        setForm({ ...form, Material: e.target.value })
-                      }
-                    />
-                    <datalist id="material-list">
-                      {filterOptions.materialien?.map((m) => (
-                        <option key={m} value={m} />
-                      ))}
-                    </datalist>
-                  </div>
-                  <div className="form-group">
-                    <label>Farbe</label>
-                    <input
-                      list="farben-list"
-                      className="form-control"
-                      placeholder=" "
-                      value={form.Farbe || ""}
-                      onChange={(e) =>
-                        setForm({ ...form, Farbe: e.target.value })
-                      }
-                    />
-                    <datalist id="farben-list">
-                      {filterOptions.farben?.map((f) => (
-                        <option key={f} value={f} />
-                      ))}
-                    </datalist>
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-section schmuckstuecke-form-foto">
-                <h4>Foto</h4>
-                <PhotoUpload
-                  artikelnummer={
-                    editing === "new"
-                      ? nextArtikelnummerPreview
-                      : form.Artikelnummer
-                  }
-                  disabled={
-                    editing === "new"
-                      ? !nextArtikelnummerPreview
-                      : editing === BULK_ZEILE && !form.Artikelnummer
-                  }
-                  hatFoto={
-                    editing === BULK_ZEILE
-                      ? Boolean(form.fotoArtikelnummer)
-                      : form.hatFoto
-                  }
-                  onPhotoSelected={() => {
-                    setForm(
-                      editing === BULK_ZEILE
-                        ? { ...form, fotoArtikelnummer: form.Artikelnummer }
-                        : { ...form, hatFoto: true },
-                    );
-                  }}
-                />
-              </div>
-
-              <div className="form-section">
-                <h4>
-                  <FontAwesomeIcon icon={faMagnifyingGlass} /> Details
-                  (Hauptstück)
-                </h4>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Form</label>
-                    <input
-                      list="formen-list"
-                      className="form-control"
-                      placeholder=" "
-                      value={form.Form || ""}
-                      onChange={(e) =>
-                        setForm({ ...form, Form: e.target.value })
-                      }
-                    />
-                    <datalist id="formen-list">
-                      {filterOptions.formen?.map((f) => (
-                        <option key={f} value={f} />
-                      ))}
-                    </datalist>
-                  </div>
-                  <div className="form-group">
-                    <label>Größe</label>
-                    <input
-                      className="form-control"
-                      placeholder=" "
-                      type="text"
-                      inputMode="decimal"
-                      value={form.Grösse ?? ""}
-                      onChange={(e) =>
-                        setForm({ ...form, Grösse: e.target.value })
-                      }
-                    />
-                  </div>
-                  {zeigeLaenge && (
-                    <div className="form-group">
-                      <label>Länge ({getLengthUnit(form)})</label>
-                      <input
-                        className="form-control"
-                        placeholder=" "
-                        type="text"
-                        inputMode="decimal"
-                        value={form.Länge ?? ""}
-                        onChange={(e) =>
-                          setForm({ ...form, Länge: e.target.value })
-                        }
-                      />
-                    </div>
-                  )}
-                  <div className="form-group">
-                    <label>Fassung</label>
-                    <input
-                      list="fassungen-list"
-                      className="form-control"
-                      placeholder=" "
-                      value={form.Fassung || ""}
-                      onChange={(e) =>
-                        setForm({ ...form, Fassung: e.target.value })
-                      }
-                    />
-                    <datalist id="fassungen-list">
-                      {filterOptions.fassungen?.map((f) => (
-                        <option key={f} value={f} />
-                      ))}
-                    </datalist>
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-section">
-                <h4>
-                  <FontAwesomeIcon icon={faRegularStar} /> Inhalt
-                </h4>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Inhalt Material</label>
-                    <input
-                      list="inhalt-material-list"
-                      className="form-control"
-                      placeholder=" "
-                      value={form.Inhalt_Material || ""}
-                      onChange={(e) =>
-                        setForm({ ...form, Inhalt_Material: e.target.value })
-                      }
-                    />
-                    <datalist id="inhalt-material-list">
-                      {filterOptions.inhalt_materialien?.map((m) => (
-                        <option key={m} value={m} />
-                      ))}
-                    </datalist>
-                  </div>
-                  <div className="form-group">
-                    <label>Inhalt Farbe</label>
-                    <input
-                      list="inhalt-farbe-list"
-                      className="form-control"
-                      placeholder=" "
-                      value={form.Inhalt_Farbe || ""}
-                      onChange={(e) =>
-                        setForm({ ...form, Inhalt_Farbe: e.target.value })
-                      }
-                    />
-                    <datalist id="inhalt-farbe-list">
-                      {filterOptions.inhalt_farben?.map((f) => (
-                        <option key={f} value={f} />
-                      ))}
-                    </datalist>
-                  </div>
-                  <div className="form-group">
-                    <label>Inhalt Farbakzent</label>
-                    <input
-                      list="inhalt-farbakzent-list"
-                      className="form-control"
-                      placeholder=" "
-                      value={form.Inhalt_Farbakzent || ""}
-                      onChange={(e) =>
-                        setForm({ ...form, Inhalt_Farbakzent: e.target.value })
-                      }
-                    />
-                    <datalist id="inhalt-farbakzent-list">
-                      {filterOptions.inhalt_farbakzente?.map((a) => (
-                        <option key={a} value={a} />
-                      ))}
-                    </datalist>
-                  </div>
-                  <div className="form-group">
-                    <label>Inhalt Zusatzmaterial</label>
-                    <input
-                      list="inhalt-zusatzmaterial-list"
-                      className="form-control"
-                      placeholder=" "
-                      value={form.Inhalt_Zusatzmaterial || ""}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          Inhalt_Zusatzmaterial: e.target.value,
-                        })
-                      }
-                    />
-                    <datalist id="inhalt-zusatzmaterial-list">
-                      {filterOptions.inhalt_zusatzmaterialien?.map((z) => (
-                        <option key={z} value={z} />
-                      ))}
-                    </datalist>
-                  </div>
-                </div>
-              </div>
-
-              {(zeigeAnhaenger || zeigeZwischenstueck) && (
-                <div className="form-section">
-                  <h4>
-                    <FontAwesomeIcon icon={faPaperclip} />{" "}
-                  {zeigeAnhaenger ? "Anhänger" : "Zwischenstück"}
-                  </h4>
-                  {zeigeAnhaenger && (
-                    <div className="schmuckstuecke-anhaenger-gruppen">
-                      <div className="schmuckstuecke-anhaenger-gruppe">
-                      <h5>Aussehen</h5>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label>Fassung</label>
-                          <input
-                            list="anhaenger-fassung-list"
-                            className="form-control"
-                            placeholder=" "
-                            value={form.Anhänger_Fassung || ""}
-                            onChange={(e) =>
-                              setForm({ ...form, Anhänger_Fassung: e.target.value })
-                            }
-                          />
-                          <datalist id="anhaenger-fassung-list">
-                            {filterOptions.anhaenger_fassungen?.map((f) => (
-                              <option key={f} value={f} />
-                            ))}
-                          </datalist>
-                        </div>
-                        <div className="form-group">
-                          <label>Form</label>
-                          <input
-                            list="anhaenger-form-list"
-                            className="form-control"
-                            placeholder=" "
-                            value={form.Anhänger_Form || ""}
-                            onChange={(e) =>
-                              setForm({ ...form, Anhänger_Form: e.target.value })
-                            }
-                          />
-                          <datalist id="anhaenger-form-list">
-                            {filterOptions.anhaenger_formen?.map((f) => (
-                              <option key={f} value={f} />
-                            ))}
-                          </datalist>
-                        </div>
-                        <div className="form-group">
-                          <label>Farbe</label>
-                          <input
-                            list="anhaenger-farbe-list"
-                            className="form-control"
-                            placeholder=" "
-                            value={form.Anhänger_Farbe || ""}
-                            onChange={(e) =>
-                              setForm({ ...form, Anhänger_Farbe: e.target.value })
-                            }
-                          />
-                          <datalist id="anhaenger-farbe-list">
-                            {filterOptions.anhaenger_farben?.map((f) => (
-                              <option key={f} value={f} />
-                            ))}
-                          </datalist>
-                        </div>
-                        <div className="form-group">
-                          <label>Größe</label>
-                          <input
-                            className="form-control"
-                            placeholder=" "
-                            type="text"
-                            inputMode="decimal"
-                            value={form.Anhänger_Grösse ?? ""}
-                            onChange={(e) =>
-                              setForm({
-                                ...form,
-                                Anhänger_Grösse: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                      </div>
-                      <div className="schmuckstuecke-anhaenger-gruppe">
-                      <h5>Inhalt</h5>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label>Material</label>
-                          <input
-                            list="anhaenger-inhalt-material-list"
-                            className="form-control"
-                            placeholder=" "
-                            value={form.Anhänger_Inhalt_Material || ""}
-                            onChange={(e) =>
-                              setForm({
-                                ...form,
-                                Anhänger_Inhalt_Material: e.target.value,
-                              })
-                            }
-                          />
-                          <datalist id="anhaenger-inhalt-material-list">
-                            {filterOptions.anhaenger_inhalt_materialien?.map((m) => (
-                              <option key={m} value={m} />
-                            ))}
-                          </datalist>
-                        </div>
-                        <div className="form-group">
-                          <label>Farbe</label>
-                          <input
-                            list="anhaenger-inhalt-farbe-list"
-                            className="form-control"
-                            placeholder=" "
-                            value={form.Anhänger_Inhalt_Farbe || ""}
-                            onChange={(e) =>
-                              setForm({
-                                ...form,
-                                Anhänger_Inhalt_Farbe: e.target.value,
-                              })
-                            }
-                          />
-                          <datalist id="anhaenger-inhalt-farbe-list">
-                            {filterOptions.anhaenger_inhalt_farben?.map((f) => (
-                              <option key={f} value={f} />
-                            ))}
-                          </datalist>
-                        </div>
-                        <div className="form-group">
-                          <label>Farbakzent</label>
-                          <input
-                            list="anhaenger-inhalt-farbakzent-list"
-                            className="form-control"
-                            placeholder=" "
-                            value={form.Anhänger_Inhalt_Farbakzente || ""}
-                            onChange={(e) =>
-                              setForm({
-                                ...form,
-                                Anhänger_Inhalt_Farbakzente: e.target.value,
-                              })
-                            }
-                          />
-                          <datalist id="anhaenger-inhalt-farbakzent-list">
-                            {filterOptions.anhaenger_inhalt_farbakzente?.map((a) => (
-                              <option key={a} value={a} />
-                            ))}
-                          </datalist>
-                        </div>
-                        <div className="form-group">
-                          <label>Zusatzmaterial</label>
-                          <input
-                            list="anhaenger-inhalt-zusatzmaterial-list"
-                            className="form-control"
-                            placeholder=" "
-                            value={form.Anhänger_Inhalt_Zusatzmaterial || ""}
-                            onChange={(e) =>
-                              setForm({
-                                ...form,
-                                Anhänger_Inhalt_Zusatzmaterial: e.target.value,
-                              })
-                            }
-                          />
-                          <datalist id="anhaenger-inhalt-zusatzmaterial-list">
-                            {filterOptions.anhaenger_inhalt_zusatzmaterialien?.map(
-                              (z) => (
-                                <option key={z} value={z} />
-                              ),
-                            )}
-                          </datalist>
-                        </div>
-                      </div>
-                      </div>
-                    </div>
-                  )}
-                  <div
-                    className={
-                      zeigeAnhaenger
-                        ? "form-row schmuckstuecke-anhaenger-trenner"
-                        : "form-row"
-                    }>
-                    {zeigeZwischenstueck && (
-                      <div className="form-group">
-                        <label>Zwischenstück</label>
-                        <input
-                          list="zwischenstuecke-list"
-                          className="form-control"
-                          placeholder=" "
-                          value={form.Zwischenstück || ""}
-                          onChange={(e) =>
-                            setForm({ ...form, Zwischenstück: e.target.value })
-                          }
-                        />
-                        <datalist id="zwischenstuecke-list">
-                          {filterOptions.zwischenstuecke?.map((z) => (
-                            <option key={z} value={z} />
-                          ))}
-                        </datalist>
-                      </div>
-                    )}
-                    {/* Hier stand ein zweites Feld "Fassung", das auf
-                        form.Fassung des Hauptstücks schrieb – wer im
-                        Anhänger-Block etwas eintrug, überschrieb damit die
-                        Fassung des Hauptstücks. Dazu war die datalist-ID
-                        "fassungen-list" ein zweites Mal im DOM (ungültiges HTML,
-                        list= bindet immer an das erste Vorkommen). Das Hauptstück
-                        hat sein eigenes Feld im Abschnitt "Details", der Anhänger
-                        sein "Anhänger Fassung" weiter oben (Befund G3). */}
-                    {zeigeAnhaenger && (
-                      <div className="form-group">
-                        <label>Anhänger (Allg.)</label>
-                        <input
-                          list="anhaenger-list"
-                          className="form-control"
-                          placeholder=" "
-                          value={form.Anhänger || ""}
-                          onChange={(e) =>
-                            setForm({ ...form, Anhänger: e.target.value })
-                          }
-                        />
-                        <datalist id="anhaenger-list">
-                          {filterOptions.anhaenger?.map((a) => (
-                            <option key={a} value={a} />
-                          ))}
-                        </datalist>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="form-section">
-                <h4>
-                  <FontAwesomeIcon icon={faEuroSign} /> Inventar & Preise
-                </h4>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Verkaufspreis (€)</label>
-                    <input
-                      className="form-control"
-                      placeholder=" "
-                      type="text"
-                      inputMode="decimal"
-                      value={form.Verkaufspreis ?? ""}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          Verkaufspreis: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Herstellungskosten (€)</label>
-                    <input
-                      className="form-control"
-                      placeholder=" "
-                      type="text"
-                      inputMode="decimal"
-                      value={form.Herstellungskosten ?? ""}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          Herstellungskosten: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  {editing !== "new" && editing !== BULK_ZEILE && (
-                  <div className="form-group">
-                    <label>Standort / Ausgelagert</label>
-                    <select
-                      className="form-control"
-                      value={form.Ausgelagert || 0}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          Ausgelagert: parseInt(e.target.value),
-                        })
-                      }>
-                      <option value="0">Lager</option>
-                      {kunden.map((k) => (
-                        <option key={k.ID} value={k.ID}>
-                          {k.Name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  )}
-                </div>
-                {editing !== "new" && editing !== BULK_ZEILE ? (
-                  <>
-                    <div className="form-row schmuckstuecke-mt-16">
-                      <div className="form-group">
-                        <label
-                          className="form-label">
-                          Ausschuss
-                        </label>
-                        <input
-                          type="checkbox"
-                          id="form-ausschuss"
-                          className="form-checkbox"
-                          checked={istWahr(form.Ausschuss)}
-                          disabled={editing === "new"}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              Ausschuss: e.target.checked,
-                              Ausschuss_Grund: e.target.checked
-                                ? form.Ausschuss_Grund || "Defekt"
-                                : "",
-                            })
-                          }
-                        />
-                      </div>
-
-                      {istWahr(form.Ausschuss) && (
-                        <div className="form-row schmuckstuecke-mt-12">
-                          <div className="form-group schmuckstuecke-flex-1">
-                            <label>Ausschuss Grund</label>
-                            <input
-                              list="ausschussgruende-list"
-                              className="form-control"
-                              value={form.Ausschuss_Grund || ""}
-                              onChange={(e) =>
-                                setForm({
-                                  ...form,
-                                  Ausschuss_Grund: e.target.value,
-                                })
-                              }
-                              placeholder=" "
-                            />
-                            <datalist id="ausschussgruende-list">
-                              {filterOptions.ausschussgruende?.map((g) => (
-                                <option key={g} value={g} />
-                              ))}
-                            </datalist>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  ""
-                )}
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button
-                className="btn btn-secondary"
-                onClick={editing === BULK_ZEILE ? cancelBulkRowForm : () => setEditing(null)}>
-                Abbrechen
-              </button>
-              {editing === BULK_ZEILE ? (
-                <button className="btn btn-primary" onClick={applyBulkRowForm}>
-                  Übernehmen
-                </button>
-              ) : editing === "new" ? (
-                <>
-                  <button
-                    className="btn btn-primary"
-                    disabled={saving}
-                    onClick={() => handleSave({ closeAfterSave: true })}>
-                    {saving ? "Speichert…" : "Speichern + Schließen"}
-                  </button>
-                  <button
-                    className="btn btn-secondary"
-                    disabled={saving}
-                    onClick={() => handleSave({ closeAfterSave: false })}>
-                    {saving ? "Speichert…" : "Speichern + Weiter"}
-                  </button>
-                </>
-              ) : (
-                <button
-                  className="btn btn-primary"
-                  disabled={saving}
-                  onClick={() => handleSave({ closeAfterSave: true })}>
-                  {saving ? "Speichert…" : "Speichern"}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        <SchmuckstueckFormular
+          editing={editing}
+          form={form}
+          setForm={setForm}
+          filterOptions={filterOptions}
+          kunden={kunden}
+          saving={saving}
+          nextArtikelnummerPreview={nextArtikelnummerPreview}
+          onAbbrechen={editing === BULK_ZEILE ? cancelBulkRowForm : () => setEditing(null)}
+          onUebernehmen={applyBulkRowForm}
+          onSpeichern={handleSave}
+        />
       )}
-
         </>
       ) : (
         <Etiketten showHeader={false} />

@@ -2,18 +2,34 @@ import { useState, useEffect, useMemo } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import DataTable from "../components/DataTable";
 import SchmuckstueckModal from "../components/SchmuckstueckModal";
-import { formatEur } from "../utils/zahlen";
 import { useToast } from "../components/Toast";
-import EmpfaengerModal from "../components/EmpfaengerModal";
 import RechnungZuruecksetzenModal from "../components/RechnungZuruecksetzenModal";
 import { useAuth } from "../context/AuthContext";
-import { empfaengerZeile } from "../utils/empfaenger";
+import DetailModal from "./documentManager/DetailModal";
+import BearbeitenModal from "./documentManager/BearbeitenModal";
 
 // Bei Einmalkunden (Onlineshop) steht der Empfänger hinter dem Sammelkunden: "Online · Erika Mustermann"
 const kundenAnzeige = (d) => {
   const kunde = d.KundenName || `Kunde ${d.Kundennummer}`;
   return d.empfaenger?.Name ? `${kunde} · ${d.empfaenger.Name}` : kunde;
 };
+
+const datumDE = (datum) =>
+  new Date(datum).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
+const leeresForm = (nummer = "") => ({
+  Nummer: nummer,
+  Kundennummer: "",
+  Artikelnummern: [],
+  rabatt_gesamt: 0,
+  rabatt_positionen: {},
+  empfaenger: null,
+  versandkosten: "",
+});
 
 export default function DocumentManager({
   type,
@@ -34,27 +50,19 @@ export default function DocumentManager({
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({});
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({
-    Nummer: "",
-    Kundennummer: "",
-    Artikelnummern: [],
-    rabatt_gesamt: 0,
-    rabatt_positionen: {},
-    empfaenger: null,
-    versandkosten: "",
-  });
+  const [form, setForm] = useState(leeresForm());
   const [geladenePieces, setAvailablePieces] = useState([]);
-  const [pieceSearch, setPieceSearch] = useState("");
-  const [artikelnummerInput, setArtikelnummerInput] = useState("");
-  // Konstant: setSortConfig wird nirgends aufgerufen, die Sortierung stand
-  // also schon immer fest auf diesem Wert (Befund G14).
-  const sortConfig = { key: "Datum", direction: "desc" };
   const [groupByKunde, setGroupByKunde] = useState(false);
   const [saving, setSaving] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const [schmuckstueckOverlay, setSchmuckstueckOverlay] = useState(null);
-  const [empfaengerOffen, setEmpfaengerOffen] = useState(false);
   const [zuruecksetzenOffen, setZuruecksetzenOffen] = useState(false);
+
+  // Jedes Öffnen mountet das Bearbeiten-Modal neu und leert so dessen Suchfelder.
+  const [oeffnung, setOeffnung] = useState(0);
+
+  // Fehler eines API-Aufrufs als Toast zeigen
+  const fehlerToast = (err) => toast.fehler(err.message);
 
   // Entwurf bearbeiten
   const openEditDraft = async (doc) => {
@@ -70,13 +78,12 @@ export default function DocumentManager({
         versandkosten: d.versandkosten ?? "",
       };
       setForm(neuesForm);
-      setPieceSearch("");
-      setArtikelnummerInput("");
       setEditing(doc.ID); // Edit mode with document ID
+      setOeffnung((n) => n + 1);
       setDetail(null); // Close detail modal
       await loadAvailablePieces(neuesForm, doc.ID);
     } catch (err) {
-      toast.fehler(err.message);
+      fehlerToast(err);
     }
   };
 
@@ -100,7 +107,7 @@ export default function DocumentManager({
       setDetail(null);
       load();
     } catch (err) {
-      toast.fehler(err.message);
+      fehlerToast(err);
     }
   };
 
@@ -121,10 +128,9 @@ export default function DocumentManager({
 
   const openDetail = async (id) => {
     try {
-      const d = await api.getDetail(id);
-      setDetail(d);
+      setDetail(await api.getDetail(id));
     } catch (err) {
-      toast.fehler(err.message);
+      fehlerToast(err);
     }
   };
 
@@ -135,7 +141,7 @@ export default function DocumentManager({
       setDetail(null);
       load();
     } catch (err) {
-      toast.fehler(err.message);
+      fehlerToast(err);
     }
   };
 
@@ -172,24 +178,15 @@ export default function DocumentManager({
     }
   };
 
-  const handleExcelExport = (id, nummer) =>
-    downloadDatei(() => api.exportExcel(id), `${dateiBasis(id, nummer)}.xlsx`);
-
-  const handleERechnungExport = (id, nummer, f) =>
-    downloadDatei(() => api.exportERechnung(id, f.format), `${dateiBasis(id, nummer)}_${f.dateiSuffix}.${f.endung}`);
-
   // Stückauswahl laden (unterschiedlich je nach Dokumenttyp).
   //
   // Form und Editing-Zustand werden übergeben, nicht aus der Closure gelesen:
   // openNew und openEditDraft rufen setForm/setEditing und direkt danach diese
   // Funktion auf. Aus der Closure kam dann noch der ALTE Zustand, für
-  // Rechnungen also `{ ausgelagert: "" }`. Das ging als `ausgelagert=` ans
-  // Backend, wo builder.equals("Ausgelagert", parseInt("")) einen NaN-Parameter
-  // erzeugte – Postgres antwortete mit "invalid input syntax for type integer"
-  // und der Nutzer sah einen 500er (Befund G5). Weil availablePieces danach
-  // leer blieb, zeigte der Kopf "Ausgewählte Schmuckstücke (n)" über einer
-  // leeren Tabelle, und Speichern schrieb die unsichtbaren Positionen trotzdem
-  // (Befund G6).
+  // Rechnungen also `{ ausgelagert: "" }` – das ging als `ausgelagert=` ans
+  // Backend und endete als 500er (NaN-Parameter, Befund G5). Weil die Liste
+  // danach leer blieb, zählte der Kopf Positionen über einer leeren Tabelle,
+  // und Speichern schrieb die unsichtbaren Positionen trotzdem (Befund G6).
   const loadAvailablePieces = async (formToUse = form, editingToUse = editing) => {
     try {
       const kunde = kunden.find((k) => String(k.ID) === String(formToUse.Kundennummer));
@@ -213,24 +210,14 @@ export default function DocumentManager({
       }
     }
 
-    const neuesForm = {
-      Nummer: nummer,
-      Kundennummer: "",
-      Artikelnummern: [],
-      rabatt_gesamt: 0,
-      rabatt_positionen: {},
-      empfaenger: null,
-      versandkosten: "",
-    };
+    const neuesForm = leeresForm(nummer);
     setForm(neuesForm);
-    setPieceSearch("");
-    setArtikelnummerInput("");
     setEditing("new");
+    setOeffnung((n) => n + 1);
     // Nur im Modus "all" (Lieferschein) sofort laden. Bei "byKunde" (Rechnung)
-    // baut pieceFilter `ausgelagert: form.Kundennummer` – der ist hier noch
-    // leer, das ergäbe `ausgelagert=` und im Backend einen NaN-Parameter, also
-    // einen 500er direkt beim Öffnen des Dialogs. Sobald ein Kunde gewählt ist,
-    // lädt der useEffect unten nach. handleSave prüft genau so (Befund G5).
+    // wäre die Kundennummer hier noch leer und pieceFilter baute `ausgelagert=`
+    // (500er im Backend, Befund G5). Sobald ein Kunde gewählt ist, lädt der
+    // useEffect unten nach. handleSave prüft genau so.
     if (pieceSelectMode === "all") {
       loadAvailablePieces(neuesForm, "new");
     } else {
@@ -238,18 +225,10 @@ export default function DocumentManager({
     }
   };
 
-  // Stückauswahl nach Kunde (nur für Rechnungen).
-  //
-  // Die Bedingung war vorher `editing === "new"`, ein geöffneter Entwurf bekam
-  // damit nie eine Stückliste – seine ausgewählten Positionen blieben in der
-  // Tabelle unsichtbar, obwohl der Kopf sie zählte (Befund G5/G6). Jetzt lädt
-  // jeder Bearbeitungszustand nach, sobald ein Kunde gesetzt ist.
+  // Stückauswahl nach Kunde (nur für Rechnungen): jeder Bearbeitungszustand
+  // lädt nach, sobald ein Kunde gesetzt ist, auch ein geöffneter Entwurf (G5/G6).
   useEffect(() => {
-    if (pieceSelectMode !== "byKunde") {
-      // Lieferschein: alle Stücke werden beim Öffnen geladen
-      return;
-    }
-    if (editing && form.Kundennummer) {
+    if (pieceSelectMode === "byKunde" && editing && form.Kundennummer) {
       loadAvailablePieces(form, editing);
     }
   }, [form.Kundennummer, editing, kunden]);
@@ -267,15 +246,13 @@ export default function DocumentManager({
       return;
     }
     // Die Nummer wurde vorher per getNextNumber geholt. Ohne diese Sperre
-    // erzeugte ein Doppelklick zwei Dokumente mit identischer Nummer bzw. eine
-    // Primary-Key-Verletzung (Befund G4).
+    // erzeugte ein Doppelklick zwei Dokumente mit identischer Nummer (Befund G4).
     if (saving) return;
     setSaving(true);
     try {
       if (editing === 'new') {
         await api.createItem({ ...form, status });
       } else {
-        // Editing existing document
         await api.updateItem(editing, { ...form, status });
       }
       setEditing(null);
@@ -283,45 +260,10 @@ export default function DocumentManager({
       load();
       if (pieceSelectMode === "all") loadAvailablePieces();
     } catch (err) {
-      toast.fehler(err.message);
+      fehlerToast(err);
     } finally {
       setSaving(false);
     }
-  };
-
-  const togglePiece = (nr) => {
-    const nrs = [...form.Artikelnummern];
-    if (nrs.includes(nr)) {
-      // Remove per-item discount when piece is removed
-      const basis = nr.split("_")[0];
-      const remainingWithSameBasis = nrs.filter((n) => n !== nr && n.split("_")[0] === basis);
-      const newRabattPositionen = { ...form.rabatt_positionen };
-      if (remainingWithSameBasis.length === 0) {
-        delete newRabattPositionen[basis];
-      }
-      setForm({ ...form, Artikelnummern: nrs.filter((n) => n !== nr), rabatt_positionen: newRabattPositionen });
-    } else {
-      setForm({ ...form, Artikelnummern: [...nrs, nr] });
-    }
-  };
-
-  const addByArtikelnummer = () => {
-    const nr = artikelnummerInput.trim();
-    if (!nr) return;
-    const piece = availablePieces.find(
-      (p) => p.Artikelnummer.toUpperCase() === nr.toUpperCase(),
-    );
-    if (!piece) {
-      toast.fehler(labels.pieceNotFound(nr));
-      return;
-    }
-    if (!form.Artikelnummern.includes(piece.Artikelnummer)) {
-      setForm({
-        ...form,
-        Artikelnummern: [...form.Artikelnummern, piece.Artikelnummer],
-      });
-    }
-    setArtikelnummerInput("");
   };
 
   // Filter, Sortierung, Gruppierung
@@ -333,68 +275,40 @@ export default function DocumentManager({
     return Array.from(y).sort((a, b) => b - a);
   }, [data]);
 
-  const gewaehlterKunde = kunden.find((k) => String(k.ID) === String(form.Kundennummer));
+  const setFilter = (key, wert) => {
+    const rest = { ...filters };
+    delete rest[key];
+    setFilters(wert !== "" ? { ...rest, [key]: wert } : rest);
+  };
 
-  const aktiveKunden = useMemo(
-    () => kunden.filter((kunde) => kunde.Aktiv === true || kunde.Aktiv === 1),
-    [kunden],
-  );
-
-  const filteredData = useMemo(() => {
-    return data.filter((d) => {
-      if (search) {
-        const s = search.toUpperCase();
-        const match =
-          d.Nummer?.toUpperCase().includes(s) ||
-          d.KundenName?.toUpperCase().includes(s) ||
-          d.empfaenger?.Name?.toUpperCase().includes(s) ||
-          String(d.ID).includes(s);
-        if (!match) return false;
-      }
-      if (filters.kundennummer) {
-        if (d.Kundennummer !== parseInt(filters.kundennummer)) return false;
-      }
-      if (filters.jahr) {
-        if (!d.Datum) return false;
-        const jahr = new Date(d.Datum).getFullYear();
-        if (String(jahr) !== String(filters.jahr)) return false;
-      }
-      return true;
-    });
-  }, [data, search, filters]);
-
+  // Vorsortierung nach Datum absteigend bestimmt die Reihenfolge bei Gleichstand;
+  // DataTable sortiert danach ein zweites Mal (Befund G14).
   const sortedData = useMemo(() => {
-    let sortableData = [...filteredData];
-    if (sortConfig.key !== null) {
-      sortableData.sort((a, b) => {
-        let aValue = a[sortConfig.key];
-        let bValue = b[sortConfig.key];
-        if (sortConfig.key === "KundenName") {
-          aValue = kundenAnzeige(a).toUpperCase();
-          bValue = kundenAnzeige(b).toUpperCase();
+    const s = search.toUpperCase();
+    return data
+      .filter((d) => {
+        if (search) {
+          const match =
+            d.Nummer?.toUpperCase().includes(s) ||
+            d.KundenName?.toUpperCase().includes(s) ||
+            d.empfaenger?.Name?.toUpperCase().includes(s) ||
+            String(d.ID).includes(s);
+          if (!match) return false;
         }
-        if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-    return sortableData;
-  }, [filteredData, sortConfig]);
-
-  // requestSort/getSortIcon waren nie verdrahtet – kein Header rief sie auf.
-  // Dadurch wird setSortConfig nirgends aufgerufen und die Sortierung unten
-  // steht dauerhaft auf ihrem Anfangswert; DataTable sortiert danach ohnehin
-  // ein zweites Mal clientseitig (Befund G14). Die tote Implementierung ist
-  // entfernt, das eingefrorene useMemo bleibt vorerst, weil es die
-  // Anfangsreihenfolge der Liste bestimmt.
+        if (filters.kundennummer && d.Kundennummer !== parseInt(filters.kundennummer)) return false;
+        if (filters.jahr) {
+          if (!d.Datum) return false;
+          if (String(new Date(d.Datum).getFullYear()) !== String(filters.jahr)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => (a.Datum < b.Datum ? 1 : a.Datum > b.Datum ? -1 : 0));
+  }, [data, search, filters]);
 
   const toggleGroup = (groupKey) => {
     const newExpanded = new Set(expandedGroups);
-    if (newExpanded.has(groupKey)) {
-      newExpanded.delete(groupKey);
-    } else {
-      newExpanded.add(groupKey);
-    }
+    if (newExpanded.has(groupKey)) newExpanded.delete(groupKey);
+    else newExpanded.add(groupKey);
     setExpandedGroups(newExpanded);
   };
 
@@ -413,9 +327,6 @@ export default function DocumentManager({
     }
     return groups.sort((a, b) => a.name.localeCompare(b.name));
   }, [sortedData, groupByKunde]);
-
-  // Render
-  const finalGesperrt = type === "rechnung" && detail?.status === "final";
 
   return (
     <div>
@@ -442,14 +353,7 @@ export default function DocumentManager({
           <select
             className="form-control doc-filter-select"
             value={filters.kundennummer ?? ""}
-            onChange={(e) => {
-              const { kundennummer, ...rest } = filters;
-              setFilters(
-                e.target.value !== ""
-                  ? { ...rest, kundennummer: e.target.value }
-                  : rest,
-              );
-            }}>
+            onChange={(e) => setFilter("kundennummer", e.target.value)}>
             <option value="">Alle Kunden</option>
             {kunden.map((k) => (
               <option key={k.ID} value={k.ID}>
@@ -460,14 +364,7 @@ export default function DocumentManager({
           <select
             className="form-control doc-filter-select-year"
             value={filters.jahr ?? ""}
-            onChange={(e) => {
-              const { jahr, ...rest } = filters;
-              setFilters(
-                e.target.value !== ""
-                  ? { ...rest, jahr: e.target.value }
-                  : rest,
-              );
-            }}>
+            onChange={(e) => setFilter("jahr", e.target.value)}>
             <option value="">Alle Jahre</option>
             {years.map((y) => (
               <option key={y} value={y}>
@@ -534,16 +431,7 @@ export default function DocumentManager({
                             <td>{d.Nummer}</td>
                             <td>{kundenAnzeige(d)}</td>
                             <td className="hide-on-mobile">
-                              {d.Datum
-                                ? new Date(d.Datum).toLocaleDateString(
-                                    "de-DE",
-                                    {
-                                      day: "2-digit",
-                                      month: "2-digit",
-                                      year: "numeric",
-                                    },
-                                  )
-                                : ""}
+                              {d.Datum ? datumDE(d.Datum) : ""}
                             </td>
                           </tr>
                         ))
@@ -570,33 +458,22 @@ export default function DocumentManager({
                   label: "Datum",
                   className: "hide-on-mobile",
                   sortable: true,
-                  render: (r) =>
-                    r.Datum
-                      ? new Date(r.Datum).toLocaleDateString("de-DE", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                        })
-                      : "",
+                  render: (r) => (r.Datum ? datumDE(r.Datum) : ""),
                 },
                 {
                   key: "status",
                   label: "Status",
                   sortable: true,
-                  render: (r) => {
-                    if (r.status === 'entwurf') {
-                      return (
-                        <span className="badge data-table-status-badge">
-                          Entwurf
-                        </span>
-                      );
-                    }
-                    return (
+                  render: (r) =>
+                    r.status === 'entwurf' ? (
+                      <span className="badge data-table-status-badge">
+                        Entwurf
+                      </span>
+                    ) : (
                       <span className="badge data-table-status-badge success">
                         Abgeschlossen
                       </span>
-                    );
-                  },
+                    ),
                 },
               ]}
             />
@@ -604,269 +481,31 @@ export default function DocumentManager({
         </div>
       </div>
 
-      {/* Detail-Modal */}
       {detail && (
-        <div className="modal-overlay">
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>
-                <FontAwesomeIcon icon={icons.modal} /> {labels.header}{" "}
-                {detail.Nummer}
-                {detail.status === 'entwurf' && (
-                  <span className="badge modal-header-badge">
-                    Entwurf
-                  </span>
-                )}
-              </h3>
-              {detail.status === 'entwurf' && (
-                <>
-                  <button
-                    className="btn btn-primary btn-sm header-action-btn"
-                    onClick={() => openEditDraft(detail)}>
-                    Bearbeiten
-                  </button>
-                  <button
-                    className="btn btn-success btn-sm mr-8"
-                    onClick={() => finalizeDraft(detail.ID)}>
-                    Abschließen
-                  </button>
-                </>
-              )}
-              {detail.status === 'final' && (
-                <button
-                  className="btn btn-primary btn-sm header-action-btn"
-                  onClick={() => handleExcelExport(detail.ID, detail.Nummer)}>
-                  {labels.excel}
-                </button>
-              )}
-              {detail.status === 'final' && eRechnungFormate.map((f) => (
-                <button
-                  key={f.format}
-                  className="btn btn-secondary btn-sm header-action-btn"
-                  title="E-Rechnung nach EN 16931 – wird vor dem Download automatisch geprüft"
-                  onClick={() => handleERechnungExport(detail.ID, detail.Nummer, f)}>
-                  {f.label}
-                </button>
-              ))}
-              {/* Finale Rechnungen sind gesperrt (#283): nur ein Admin kann sie zurücksetzen */}
-              {finalGesperrt && istAdmin && (
-                <button
-                  className="btn btn-secondary btn-sm header-delete-btn"
-                  onClick={() => setZuruecksetzenOffen(true)}>
-                  Zurücksetzen
-                </button>
-              )}
-              {!finalGesperrt && (
-                <button
-                  className="btn btn-danger btn-sm header-delete-btn"
-                  onClick={() => handleDelete(detail.ID)}>
-                  <FontAwesomeIcon icon={icons.trash} /> {labels.delete}
-                </button>
-              )}
-              <button className="modal-close" onClick={() => setDetail(null)}>
-                ×
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="detail-grid">
-                <div className="detail-item">
-                  <label>Kunde</label>
-                  <div className="detail-value">{detail.KundenName}</div>
-                </div>
-                <div className="detail-item">
-                  <label>Datum</label>
-                  <div className="detail-value">
-                    {new Date(detail.Datum).toLocaleDateString("de-DE", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}
-                  </div>
-                </div>
-                {detail.empfaenger && (
-                  <div className="detail-item">
-                    <label>Rechnungsempfänger</label>
-                    <div className="detail-value">{empfaengerZeile(detail.empfaenger)}</div>
-                  </div>
-                )}
-                {type === "rechnung" && Number(detail.rabatt_gesamt) > 0 && (
-                  <div className="detail-item">
-                    <label>Gesamtrabatt</label>
-                    <div className="detail-value detail-value-warning">
-                      {Number(detail.rabatt_gesamt)}%
-                    </div>
-                  </div>
-                )}
-                {type === "rechnung" && Number(detail.versandkosten) > 0 && (
-                  <div className="detail-item">
-                    <label>Versandkosten</label>
-                    <div className="detail-value">{formatEur(Number(detail.versandkosten))}</div>
-                  </div>
-                )}
-              </div>
-              {/* Aufteilung Marina & Saskia */}
-              {detail.schmuckstuecke?.length > 0 && (
-                <div className="docmgr-vorschau-box">
-                  <label className="docmgr-fs-0_9em-mb-0-block-color-888-fw-600">
-                    {/* #241: der Lieferschein zeigt, welcher Wert an den
-                        Kunden ging -- abgerechnet wird erst per Rechnung */}
-                    {type === "lieferschein"
-                      ? "An Kunde gesendet (Netto nach Provision):"
-                      : "Aufteilung (Netto nach Provision):"}
-                  </label>
-                  {(() => {
-                    // Befund G7: diese Zahlen wurden hier aus rohen Preisen
-                    // summiert -- ohne Positions- und Gesamtrabatt. Bei 20 %
-                    // Rabatt stand im Modal ein um 20 % zu hoher
-                    // Auszahlungsbetrag je Herstellerin, und genau danach wird
-                    // abgerechnet. Sie kommen jetzt aus SQL (utils/rabatt.js),
-                    // in derselben Reihenfolge wie auf dem Beleg.
-                    const summen = detail.summen || {};
-                    const provisionPercent = Number(detail.Provision) || 0;
-                    const totalBrutto = Number(summen.summe_nach_rabatt) || 0;
-                    const provisionValue = Number(summen.provision_betrag) || 0;
-                    const totalNetto = Number(summen.ueberweisungsbetrag) || 0;
-                    const marinaBrutto = Number(summen.marina_brutto) || 0;
-                    const saskiaBrutto = Number(summen.saskia_brutto) || 0;
-                    const marinaNetto = Number(summen.marina_netto) || 0;
-                    const saskiaNetto = Number(summen.saskia_netto) || 0;
-                    const rabattGesamt = Number(summen.rabatt_gesamt) || 0;
-                    const versandkosten = Number(summen.versandkosten) || 0;
-
-                    return (
-                      <div className="docmgr-flex-dir-column-gap-8">
-                        <div className="docmgr-pb-8-border-b-1-solid-ddd">
-                          <div className="docmgr-flex-jc-space-between-mb-4">
-                            {/* Dieselbe Bezeichnung wie auf dem Beleg, damit
-                                Modal und Rechnung nicht zwei Namen fuer
-                                dieselbe Zahl fuehren (Befund G7). */}
-                            <span>
-                              {type === "lieferschein"
-                                ? "Gesendet brutto:"
-                                : rabattGesamt > 0 ? "Summe nach Rabatt:" : "Gesamtwert:"}
-                            </span>
-                            <strong>{formatEur(totalBrutto)}</strong>
-                          </div>
-                          {provisionPercent > 0 && (
-                            <>
-                              <div className="docmgr-flex-jc-space-between-mb-4-color-d9534f">
-                                <span>Provision ({provisionPercent}%):</span>
-                                <strong>-{formatEur(provisionValue)}</strong>
-                              </div>
-                            </>
-                          )}
-                          {/* Versand gehört keiner Herstellerin, deshalb nur
-                              im Überweisungsbetrag, nicht in der Aufteilung */}
-                          {versandkosten > 0 && (
-                            <div className="aufteilung-zeile">
-                              <span>Versandkosten:</span>
-                              <strong>+{formatEur(versandkosten)}</strong>
-                            </div>
-                          )}
-                          {(provisionPercent > 0 || versandkosten > 0) && (
-                              <div className="docmgr-flex-jc-space-between-fw-600">
-                                <span>
-                                  {type === "lieferschein" ? "Gesendet netto:" : "Überweisungsbetrag:"}
-                                </span>
-                                <strong>{formatEur(totalNetto)}</strong>
-                              </div>
-                          )}
-                        </div>
-
-                        <div className="docmgr-flex-jc-space-between-gap-12-wrap-wrap">
-                          {marinaBrutto > 0 && (
-                            <div>
-                              <strong>Marina:</strong>{" "}
-                              {formatEur(marinaNetto)}
-                              <span className="docmgr-fs-0_9em-color-999-ml-4">
-                                ({formatEur(marinaBrutto)} brutto)
-                              </span>
-                            </div>
-                          )}
-                          {saskiaBrutto > 0 && (
-                            <div>
-                              <strong>Saskia:</strong>{" "}
-                              {formatEur(saskiaNetto)}
-                              <span className="docmgr-fs-0_9em-color-999-ml-4">
-                                ({formatEur(saskiaBrutto)} brutto)
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-              {detail.schmuckstuecke?.length > 0 && (
-                <>
-                  <h4 className="modal-body h4">
-                    Zugehörige Schmuckstücke ({detail.schmuckstuecke.length})
-                  </h4>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Artikelnr.</th>
-                        <th>Art</th>
-                        <th>Preis</th>
-                        {type === "rechnung" && <th>Rabatt</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.schmuckstuecke
-                        .sort((a, b) =>
-                          a.Artikelnummer.split("_")[0].localeCompare(
-                            b.Artikelnummer.split("_")[0],
-                          ),
-                        )
-                        .map((s) => {
-                          const basis = s.Artikelnummer.split("_")[0];
-                          const itemRabatt = type === "rechnung"
-                            ? Number(detail.rabatt_positionen?.[basis] || 0)
-                            : 0;
-                          return (
-                          <tr key={s.Artikelnummer}>
-                            <td>
-                              <button
-                                className="schmuck-table-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSchmuckstueckOverlay(s.Artikelnummer);
-                                }}>
-                                <span className="badge gold">
-                                  {s.Artikelnummer.split("_")[0]}
-                                </span>
-                              </button>
-                            </td>
-                            <td>{s.Art}</td>
-                            <td>
-                              {itemRabatt > 0 ? (
-                                <span>
-                                  <span className="schmuck-item-row-price-original">
-                                    {formatEur(s.Verkaufspreis)}
-                                  </span>
-                                  <span className="schmuck-item-row-price">
-                                    {formatEur(Number(s.Verkaufspreis) * (1 - itemRabatt / 100))}
-                                  </span>
-                                </span>
-                              ) : (
-                                formatEur(s.Verkaufspreis)
-                              )}
-                            </td>
-                            {type === "rechnung" && (
-                              <td className={itemRabatt > 0 ? "schmuck-item-row-rabatt" : "schmuck-item-row-rabatt no-rabatt"}>
-                                {itemRabatt > 0 ? `-${itemRabatt}%` : "–"}
-                              </td>
-                            )}
-                          </tr>
-                        )})}
-                    </tbody>
-                  </table>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        <DetailModal
+          detail={detail}
+          datum={datumDE(detail.Datum)}
+          type={type}
+          labels={labels}
+          icons={icons}
+          eRechnungFormate={eRechnungFormate}
+          istAdmin={istAdmin}
+          onEdit={openEditDraft}
+          onFinalize={finalizeDraft}
+          onExcel={(id, nummer) =>
+            downloadDatei(() => api.exportExcel(id), `${dateiBasis(id, nummer)}.xlsx`)
+          }
+          onERechnung={(id, nummer, f) =>
+            downloadDatei(
+              () => api.exportERechnung(id, f.format),
+              `${dateiBasis(id, nummer)}_${f.dateiSuffix}.${f.endung}`,
+            )
+          }
+          onZuruecksetzen={() => setZuruecksetzenOffen(true)}
+          onDelete={handleDelete}
+          onSchmuck={setSchmuckstueckOverlay}
+          onClose={() => setDetail(null)}
+        />
       )}
 
       {zuruecksetzenOffen && detail && (
@@ -877,325 +516,21 @@ export default function DocumentManager({
         />
       )}
 
-      {/* Modal für neues Dokument / Entwurf bearbeiten */}
       {editing && (
-        <div className="modal-overlay">
-          <div
-            className="modal modal-lg modal-edit-document"
-            onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>
-                {editing === 'new' ? labels.modalTitle : `${labels.header} ${form.Nummer} bearbeiten`}
-                {editing !== 'new' && (
-                  <span className="badge modal-header-badge">
-                    Entwurf
-                  </span>
-                )}
-              </h3>
-              <button className="modal-close" onClick={() => setEditing(null)}>
-                ×
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Kunde*</label>
-                  <select
-                    className="form-control"
-                    value={form.Kundennummer}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        Kundennummer: e.target.value,
-                        ...(pieceSelectMode === "byKunde"
-                          ? { Artikelnummern: [] }
-                          : {}),
-                      })
-                    }>
-                    <option value="">Bitte wählen...</option>
-                    {aktiveKunden.map((k) => (
-                      <option key={k.ID} value={k.ID}>
-                        {k.Name}
-                      </option>
-                    ))}
-                  </select>
-                  {pieceSelectMode === "byKunde" && gewaehlterKunde?.Direktverkauf && (
-                    <small className="form-hinweis">
-                      Direktverkauf: Stücke aus dem Lager und bei diesem Kunden, kein Lieferschein nötig.
-                    </small>
-                  )}
-                </div>
-                {type === "rechnung" && (
-                  <div className="form-group">
-                    <label>Rechnungsempfänger (Onlineshop)</label>
-                    {form.empfaenger ? (
-                      <div className="empfaenger-summary">
-                        <span>{empfaengerZeile(form.empfaenger)}</span>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => setEmpfaengerOffen(true)}>
-                          Bearbeiten
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-sm"
-                          title="Rechnungsempfänger entfernen"
-                          aria-label="Rechnungsempfänger entfernen"
-                          onClick={() => setForm({ ...form, empfaenger: null })}>
-                          <FontAwesomeIcon icon={icons.times} />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => setEmpfaengerOffen(true)}>
-                        Einmalkunde erfassen…
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="piece-selection piece-selection-wrapper">
-                <div className="piece-selection-flex">
-                  {/* Linke Seite: Stückauswahl */}
-                  <div className="piece-side">
-                    <h5>Alle Schmuckstücke</h5>
-                    <input
-                      className="form-control search-input piece-search-input"
-                      placeholder="Schmuckstücke suchen..."
-                      value={pieceSearch}
-                      onChange={(e) => setPieceSearch(e.target.value)}
-                      disabled={
-                        pieceSelectMode === "byKunde" && !form.Kundennummer
-                      }
-                    />
-                    <div className="piece-container">
-                      <DataTable
-                        data={availablePieces.filter((p) =>
-                          pieceSearch.trim() === ""
-                            ? true
-                            : [p.Artikelnummer, p.Art, String(p.Verkaufspreis)]
-                                .join(" ")
-                                .toLowerCase()
-                                .includes(pieceSearch.trim().toLowerCase()),
-                        )}
-                        columns={[
-                          {
-                            key: "select",
-                            label: "",
-                            render: (p) => (
-                              <input
-                                type="checkbox"
-                                className="form-checkbox"
-                                checked={form.Artikelnummern.includes(
-                                  p.Artikelnummer,
-                                )}
-                                readOnly
-                              />
-                            ),
-                            width: 40,
-                          },
-                          {
-                            key: "Artikelnummer",
-                            label: "Artikelnr.",
-                            sortable: true,
-                          },
-                          { key: "Art", label: "Art", sortable: true },
-                          {
-                            key: "Verkaufspreis",
-                            label: "Preis",
-                            sortable: true,
-                            render: (p) => formatEur(p.Verkaufspreis),
-                          },
-                        ]}
-                        onRowClick={(p) => togglePiece(p.Artikelnummer)}
-                        rowProps={(p) => ({
-                          draggable: true,
-                          onDragStart: (e) =>
-                            e.dataTransfer.setData(
-                              "artikelnummer",
-                              p.Artikelnummer,
-                            ),
-                        })}
-                      />
-                    </div>
-                  </div>
-                  {/* Rechte Seite: Selektierte Stücke */}
-                  <div className="piece-side">
-                    <h5>
-                      Ausgewählte Schmuckstücke ({form.Artikelnummern.length})
-                    </h5>
-                    <div className="piece-add-controls">
-                      <input
-                        className="form-control piece-add-input"
-                        placeholder="Artikelnummer eingeben..."
-                        value={artikelnummerInput}
-                        onChange={(e) => setArtikelnummerInput(e.target.value)}
-                        onKeyDown={(e) =>
-                          e.key === "Enter" && addByArtikelnummer()
-                        }
-                        disabled={
-                          pieceSelectMode === "byKunde" && !form.Kundennummer
-                        }
-                      />
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={addByArtikelnummer}
-                        disabled={
-                          pieceSelectMode === "byKunde" && !form.Kundennummer
-                        }>
-                        Hinzufügen
-                      </button>
-                    </div>
-                    <div
-                      className="piece-container"
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const nr = e.dataTransfer.getData("artikelnummer");
-                        if (nr && !form.Artikelnummern.includes(nr)) {
-                          setForm({
-                            ...form,
-                            Artikelnummern: [...form.Artikelnummern, nr],
-                          });
-                        }
-                      }}>
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            <th>Artikelnr.</th>
-                            <th>Art</th>
-                            <th>Preis</th>
-                            {type === "rechnung" && <th className="docmgr-minw-90">Rabatt %</th>}
-                            <th></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {form.Artikelnummern.map((nr) => {
-                            const piece = availablePieces.find(
-                              (p) => p.Artikelnummer === nr,
-                            );
-                            if (!piece) return null;
-                            const basis = nr.split("_")[0];
-                            const rabatt = type === "rechnung"
-                              ? Number(form.rabatt_positionen?.[basis] || 0)
-                              : 0;
-                            return (
-                              <tr key={nr}>
-                                <td>{piece.Artikelnummer}</td>
-                                <td>{piece.Art}</td>
-                                <td>{formatEur(piece.Verkaufspreis)}</td>
-                                {type === "rechnung" && (
-                                  <td>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="100"
-                                      step="1"
-                                      value={rabatt}
-                                      className="rabatt-input-piece form-control"
-                                      onClick={(e) => e.stopPropagation()}
-                                      onChange={(e) => {
-                                        const val = Math.min(100, Math.max(0, Number(e.target.value) || 0));
-                                        setForm({
-                                          ...form,
-                                          rabatt_positionen: {
-                                            ...form.rabatt_positionen,
-                                            [basis]: val,
-                                          },
-                                        });
-                                      }}
-                                    />
-                                  </td>
-                                )}
-                                <td>
-                                  <button
-                                    className="btn btn-danger btn-sm"
-                                    title="Entfernen"
-                                    onClick={() => togglePiece(nr)}>
-                                    <FontAwesomeIcon icon={icons.times} />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {type === "rechnung" && (
-              <div className="rabatt-section">
-                <div className="rabatt-form-group">
-                  <label className="rabatt-label">Gesamtrabatt auf Rechnung:</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={form.rabatt_gesamt || 0}
-                    className="form-control rabatt-input"
-                    onChange={(e) => {
-                      const val = Math.min(100, Math.max(0, Number(e.target.value) || 0));
-                      setForm({ ...form, rabatt_gesamt: val });
-                    }}
-                  />
-                  <label className="rabatt-label">%</label>
-                </div>
-                <div className="rabatt-form-group">
-                  <label className="rabatt-label" htmlFor="versandkosten">Versandkosten:</label>
-                  {/* Leer = keine Versandkosten; das Backend speichert dann NULL */}
-                  <input
-                    id="versandkosten"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="optional"
-                    value={form.versandkosten ?? ""}
-                    className="form-control rabatt-input"
-                    onChange={(e) => setForm({ ...form, versandkosten: e.target.value })}
-                  />
-                  <label className="rabatt-label">€</label>
-                </div>
-              </div>
-            )}
-            <div className="modal-footer">
-              <button
-                className="btn btn-secondary"
-                onClick={() => setEditing(null)}>
-                Abbrechen
-              </button>
-              <button
-                className="btn btn-secondary ml-auto"
-                disabled={saving}
-                onClick={() => handleSave('entwurf')}>
-                {saving ? 'Speichert…' : 'Als Entwurf speichern'}
-              </button>
-              <button
-                className="btn btn-primary"
-                disabled={saving}
-                onClick={() => handleSave('final')}>
-                {saving ? 'Speichert…' : 'Speichern & Abschließen'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Außerhalb des Bearbeiten-Modals: dessen transform-Animation und
-          overflow: hidden würden das fixierte Overlay sonst beschneiden */}
-      {editing && empfaengerOffen && (
-        <EmpfaengerModal
-          empfaenger={form.empfaenger}
-          onClose={() => setEmpfaengerOffen(false)}
-          onSave={(empfaenger) => {
-            setForm({ ...form, empfaenger });
-            setEmpfaengerOffen(false);
-          }}
+        <BearbeitenModal
+          key={oeffnung}
+          type={type}
+          labels={labels}
+          icons={icons}
+          pieceSelectMode={pieceSelectMode}
+          editing={editing}
+          form={form}
+          setForm={setForm}
+          kunden={kunden}
+          availablePieces={availablePieces}
+          saving={saving}
+          onSave={handleSave}
+          onClose={() => setEditing(null)}
         />
       )}
       {schmuckstueckOverlay && (

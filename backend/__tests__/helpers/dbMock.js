@@ -59,4 +59,8 @@ function createDbMock() {
   };
 }
 
-module.exports = { createDbMock, pruefeKlammern };
+function createLoggerMock() {
+  return { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+}
+
+module.exports = { createDbMock, createLoggerMock, pruefeKlammern };

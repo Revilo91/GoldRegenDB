@@ -73,14 +73,6 @@ describe('authApi', () => {
     expect(bodyOf(spy).password).not.toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it('fordert ein Reset-Token nur mit dem Benutzernamen an', async () => {
-    const spy = mockFetchOk({ message: 'ok' });
-    await authApi.forgotPassword('admin');
-
-    expect(spy.mock.calls[0][0]).toContain('/auth/forgot-password');
-    expect(bodyOf(spy)).toEqual({ username: 'admin' });
-  });
-
   it('sendet Token und neues Passwort beim Zurücksetzen', async () => {
     const spy = mockFetchOk({ message: 'ok' });
     await authApi.resetPassword('a'.repeat(64), 'neues-sicheres-passwort');
@@ -118,14 +110,6 @@ describe('Benutzerverwaltung', () => {
       password: 'ein-sicheres-passwort',
       role: 'bearbeiter',
     });
-  });
-
-  it('setzt ein Passwort im Klartext zurück', async () => {
-    const spy = mockFetchOk({ message: 'ok' });
-    await api.resetUserPassword(7, 'neues-passwort');
-
-    expect(spy.mock.calls[0][0]).toContain('/users/7/reset-password');
-    expect(bodyOf(spy)).toEqual({ newPassword: 'neues-passwort' });
   });
 });
 

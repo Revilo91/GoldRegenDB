@@ -29,24 +29,13 @@ describe('istWahr(wert)', () => {
 });
 
 describe('statusVon(stueck)', () => {
-  it('erkennt Lager', () => {
-    expect(statusVon({ Verkauft: false, Ausschuss: false, Ausgelagert: 0 }))
-      .toBe(STATUS.LAGER);
-  });
-
-  it('erkennt Verkauft', () => {
-    expect(statusVon({ Verkauft: true, Ausschuss: false, Ausgelagert: 0 }))
-      .toBe(STATUS.VERKAUFT);
-  });
-
-  it('erkennt Ausschuss', () => {
-    expect(statusVon({ Verkauft: false, Ausschuss: true, Ausgelagert: 0 }))
-      .toBe(STATUS.AUSSCHUSS);
-  });
-
-  it('erkennt Ausgelagert', () => {
-    expect(statusVon({ Verkauft: false, Ausschuss: false, Ausgelagert: 7 }))
-      .toBe(STATUS.AUSGELAGERT);
+  it.each([
+    ['Lager', { Verkauft: false, Ausschuss: false, Ausgelagert: 0 }, STATUS.LAGER],
+    ['Verkauft', { Verkauft: true, Ausschuss: false, Ausgelagert: 0 }, STATUS.VERKAUFT],
+    ['Ausschuss', { Verkauft: false, Ausschuss: true, Ausgelagert: 0 }, STATUS.AUSSCHUSS],
+    ['Ausgelagert', { Verkauft: false, Ausschuss: false, Ausgelagert: 7 }, STATUS.AUSGELAGERT],
+  ])('erkennt %s', (_name, stueck, erwartet) => {
+    expect(statusVon(stueck)).toBe(erwartet);
   });
 
   // Der CHECK schmuck_status_chk verbietet diesen Zustand in der Datenbank.

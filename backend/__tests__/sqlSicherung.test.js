@@ -1,11 +1,6 @@
 'use strict';
 
-jest.mock('../src/utils/logger', () => ({
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
-}));
+jest.mock('../src/utils/logger', () => require('./helpers/dbMock').createLoggerMock());
 jest.mock('bcryptjs', () => ({ hash: jest.fn() }));
 
 const fs = require('fs');
@@ -154,7 +149,11 @@ describe('starte – paralleler Lauf', () => {
     expect(zweiter.gestartet).toBe(false);
     expect(zweiter.stand.status).toBe('running');
 
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Auf den Aufruf warten statt fest zu schlafen: vor pg_dump liegen Dateizugriffe,
+    // die auf einem langsamen CI-Runner länger als ein fester Wert brauchen.
+    for (let i = 0; i < 200 && execFileImpl.mock.calls.length === 0; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
     expect(execFileImpl).toHaveBeenCalledTimes(1);
     execFileImpl.steuerung.frei();
     await warteAufEnde(d);

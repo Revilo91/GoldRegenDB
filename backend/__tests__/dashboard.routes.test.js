@@ -5,9 +5,7 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 const request = require('supertest');
 
 jest.mock('../src/config/db', () => ({ query: jest.fn() }));
-jest.mock('../src/utils/logger', () => ({
-  info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn(),
-}));
+jest.mock('../src/utils/logger', () => require('./helpers/dbMock').createLoggerMock());
 
 const db = require('../src/config/db');
 const logger = require('../src/utils/logger');

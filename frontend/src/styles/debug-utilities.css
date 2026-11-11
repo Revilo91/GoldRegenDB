@@ -85,9 +85,6 @@
 }
 
 /* ============ UTILITIES ============ */
-.hide-on-desktop {
-  display: none !important;
-}
 
 .responsive-grid-2 {
   display: grid;

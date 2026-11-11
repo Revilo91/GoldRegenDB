@@ -2,9 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseZahl,
   parseZahlOderNull,
-  zahlFuerEingabe,
   formatEur,
-  formatZahl,
 } from "../utils/zahlen";
 
 describe("parseZahl", () => {
@@ -50,19 +48,6 @@ describe("parseZahlOderNull", () => {
   });
 });
 
-describe("zahlFuerEingabe", () => {
-  it("macht aus null/undefined einen leeren String", () => {
-    expect(zahlFuerEingabe(null)).toBe("");
-    expect(zahlFuerEingabe(undefined)).toBe("");
-    expect(zahlFuerEingabe(NaN)).toBe("");
-  });
-
-  it("zeigt Dezimalzahlen mit Komma", () => {
-    expect(zahlFuerEingabe(12.5)).toBe("12,5");
-    expect(zahlFuerEingabe(0)).toBe("0");
-  });
-});
-
 describe("formatEur", () => {
   it("formatiert deutsch mit Währung", () => {
     // Nicht-brechendes Leerzeichen vor dem Euro-Zeichen, daher Regex.
@@ -73,17 +58,5 @@ describe("formatEur", () => {
   it("behandelt null und undefined als 0", () => {
     expect(formatEur(null)).toMatch(/^0,00\s?€$/);
     expect(formatEur(undefined)).toMatch(/^0,00\s?€$/);
-  });
-});
-
-describe("formatZahl", () => {
-  it("formatiert ohne Währung", () => {
-    expect(formatZahl(45)).toBe("45");
-    expect(formatZahl(2.5)).toBe("2,5");
-  });
-
-  it("gibt für leere Werte einen leeren String zurück", () => {
-    expect(formatZahl(null)).toBe("");
-    expect(formatZahl("")).toBe("");
   });
 });

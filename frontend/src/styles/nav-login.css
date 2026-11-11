@@ -25,10 +25,6 @@
   color: #fca5a5;
 }
 
-.dblUnderlined {
-  border-bottom: 3px double;
-}
-
 /* ============ LOGIN PAGE ============ */
 .login-page {
   display: flex;

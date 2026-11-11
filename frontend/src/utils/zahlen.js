@@ -26,27 +26,11 @@ export function parseZahlOderNull(eingabe, ersatz = null) {
   return n === null ? ersatz : n;
 }
 
-// Für den Wert eines Eingabefeldes: null/undefined werden zu "", damit React
-// das Feld als kontrolliert behandelt und der Nutzer es leeren kann.
-export function zahlFuerEingabe(wert) {
-  if (wert === null || wert === undefined || Number.isNaN(wert)) return '';
-  return String(wert).replace('.', ',');
-}
-
 // Geldbetrag in deutscher Schreibweise: 12,50 €
 export function formatEur(wert) {
   return Number(wert ?? 0).toLocaleString('de-DE', {
     style: 'currency',
     currency: 'EUR',
-  });
-}
-
-// Zahl in deutscher Schreibweise ohne Währung, z. B. für Maße.
-export function formatZahl(wert, nachkommastellen = 2) {
-  if (wert === null || wert === undefined || wert === '') return '';
-  return Number(wert).toLocaleString('de-DE', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: nachkommastellen,
   });
 }
 

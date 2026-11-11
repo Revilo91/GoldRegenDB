@@ -14,12 +14,7 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 
 jest.mock('../src/config/db', () => require('./helpers/dbMock').createDbMock());
 
-jest.mock('../src/utils/logger', () => ({
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
-}));
+jest.mock('../src/utils/logger', () => require('./helpers/dbMock').createLoggerMock());
 
 // Durchreichen, damit Tests das erzeugte Klartext-Token abfangen können (Issue #258)
 jest.mock('../src/utils/accountSecurity', () => {

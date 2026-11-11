@@ -44,27 +44,15 @@ describe('Laden', () => {
     expect(screen.getByText(/Lade Dashboard/)).toBeInTheDocument();
   });
 
-  it('meldet einen API-Fehler mit Ursache', async () => {
-    api.getDashboard.mockRejectedValue(new Error('Serverfehler 500'));
+  it.each([
+    ['einen API-Fehler mit Ursache', () => Promise.reject(new Error('Serverfehler 500')), /Fehler beim Laden der Dashboard-Daten: Serverfehler 500/],
+    ['einen Fehler ohne Meldung mit Standardtext', () => Promise.reject(new Error('')), /Die Dashboard-Daten konnten nicht geladen werden/],
+    ['eine leere Antwort als Fehler', () => Promise.resolve(null), /Fehler beim Laden der Dashboard-Daten\./],
+  ])('meldet %s', async (_name, antwort, text) => {
+    api.getDashboard.mockImplementation(antwort);
     render(<Dashboard />);
 
-    expect(await screen.findByText(/Fehler beim Laden der Dashboard-Daten: Serverfehler 500/)).toBeInTheDocument();
-  });
-
-  it('nutzt einen Standardtext, wenn der Fehler keine Meldung trägt', async () => {
-    api.getDashboard.mockRejectedValue(new Error(''));
-    render(<Dashboard />);
-
-    expect(
-      await screen.findByText(/Die Dashboard-Daten konnten nicht geladen werden/),
-    ).toBeInTheDocument();
-  });
-
-  it('behandelt eine leere Antwort als Fehler', async () => {
-    api.getDashboard.mockResolvedValue(null);
-    render(<Dashboard />);
-
-    expect(await screen.findByText(/Fehler beim Laden der Dashboard-Daten\./)).toBeInTheDocument();
+    expect(await screen.findByText(text)).toBeInTheDocument();
   });
 });
 
@@ -80,14 +68,6 @@ describe('Kennzahlen', () => {
     expect(wertZu('Verkauft')).toHaveTextContent('20');
     expect(wertZu('Ausschuss')).toHaveTextContent('10');
     expect(wertZu('Aktive Kunden')).toHaveTextContent('7/9');
-  });
-
-  it('formatiert den vom Backend (nach Rabatt) gelieferten Umsatz als Euro, ohne ihn neu zu berechnen', async () => {
-    api.getDashboard.mockResolvedValue(daten());
-    render(<Dashboard />);
-    await screen.findByText('Umsatz (verkauft)');
-
-    expect(wertZu('Umsatz (verkauft)').textContent).toMatch(/^1\.234,50\s€$/);
   });
 
   it('zeigt Herstellerumsätze getrennt und ihre Summe entspricht dem Gesamtumsatz', async () => {
@@ -117,22 +97,16 @@ describe('Kennzahlen', () => {
     expect(wertZu('Umsatz (verkauft)').textContent).toMatch(/^0,00\s€$/);
   });
 
-  it('zeigt bei fehlendem Umsatz (null) 0,00 EUR statt NaN', async () => {
-    api.getDashboard.mockResolvedValue(daten({ statistics: { ...statistik, totalRevenue: null } }));
+  it.each([
+    ['1234.50', /^1\.234,50\s€$/, 'wie vom Backend (nach Rabatt) geliefert, ohne Neuberechnung'],
+    [null, /^0,00\s€$/, 'fehlend (null): 0,00 EUR statt NaN'],
+    ['1234567.89', /^1\.234\.567,89\s€$/, 'große Beträge mit Tausendertrennzeichen'],
+  ])('formatiert den Umsatz %s als Euro (%s)', async (umsatz, muster) => {
+    api.getDashboard.mockResolvedValue(daten({ statistics: { ...statistik, totalRevenue: umsatz } }));
     render(<Dashboard />);
     await screen.findByText('Umsatz (verkauft)');
 
-    expect(wertZu('Umsatz (verkauft)').textContent).toMatch(/^0,00\s€$/);
-  });
-
-  it('behandelt große Umsätze mit Tausendertrennzeichen', async () => {
-    api.getDashboard.mockResolvedValue(
-      daten({ statistics: { ...statistik, totalRevenue: '1234567.89' } }),
-    );
-    render(<Dashboard />);
-    await screen.findByText('Umsatz (verkauft)');
-
-    expect(wertZu('Umsatz (verkauft)').textContent).toMatch(/^1\.234\.567,89\s€$/);
+    expect(wertZu('Umsatz (verkauft)').textContent).toMatch(muster);
   });
 });
 

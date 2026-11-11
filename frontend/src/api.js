@@ -259,8 +259,6 @@ export const authApi = {
   logout: () => request('/auth/logout', { method: 'POST' }),
   changePassword: (currentPassword, newPassword) =>
     request('/auth/change-password', { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) }),
-  forgotPassword: (username) =>
-    request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ username }) }),
   resetPassword: (token, newPassword) =>
     request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
   generateAdminResetLink: (userId) =>
@@ -278,12 +276,9 @@ export const api = {
 
   // Kunden
   getKunden: () => request('/kunden'),
-  getKunde: (id) => request(`/kunden/${id}`),
-  getKundeSchmuck: (id) => request(`/kunden/${id}/schmuckstuecke`),
   createKunde: (data) => request('/kunden', { method: 'POST', body: JSON.stringify(data) }),
   updateKunde: (id, data) => request(`/kunden/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteKunde: (id) => request(`/kunden/${id}`, { method: 'DELETE' }),
-  restockKunde: (id) => request(`/kunden/${id}/restock`, { method: 'PUT', body: JSON.stringify({}) }),
   restockKundeSelective: (id, artikelnummern) => request(`/kunden/${id}/restock-selective`, { method: 'PUT', body: JSON.stringify({ artikelnummern }) }),
 
   // Schmuckstücke
@@ -374,8 +369,6 @@ export const api = {
 
   // Bestellübersicht (DSGVO)
   getBestellungen: () => request('/bestelluebersicht'),
-  getBestellung: (id) => request(`/bestelluebersicht/${id}`),
-  getNextBestellnummer: () => request('/bestelluebersicht/next-number'),
   createBestellung: (data) => request('/bestelluebersicht', { method: 'POST', body: JSON.stringify(data) }),
   updateBestellung: (id, data) => request(`/bestelluebersicht/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   anonymisiereBestellungKunde: (id) => request(`/bestelluebersicht/${id}/anonymisieren`, { method: 'POST', body: JSON.stringify({}) }),
@@ -397,7 +390,6 @@ export const api = {
     const qs = new URLSearchParams(params).toString();
     return request(`/audit-log?${qs}`);
   },
-  getAuditLogForArtikel: (nr) => request(`/audit-log/artikel/${nr}`),
 
   // Debug (Admin)
   getDebugTables: () => request('/debug/tables'),
@@ -427,12 +419,9 @@ export const api = {
 
   // Benutzerverwaltung
   getUsers: () => request('/users'),
-  getUser: (id) => request(`/users/${id}`),
   createUser: (data) => request('/users', { method: 'POST', body: JSON.stringify(data) }),
   updateUser: (id, data) => request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
-  resetUserPassword: (id, newPassword) =>
-    request(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }) }),
 
   // Datensicherung (Backup / Restore)
   getBackupTables: () => request('/backup/tables'),

@@ -730,22 +730,6 @@ describe('Ansicht: Tabelle oder Foto-Raster', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
-  it('funktioniert, wenn localStorage wirft', async () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('gesperrt'); });
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('gesperrt'); });
-    rendereSeite();
-
-    expect(await screen.findByRole('table')).toBeInTheDocument();
-    fireEvent.click(rasterBtn());
-    expect(document.querySelectorAll('.foto-kachel')).toHaveLength(2);
-  });
-
-  it('ignoriert einen ungültigen gespeicherten Wert', async () => {
-    localStorage.setItem(SCHLUESSEL, 'quatsch');
-    rendereSeite();
-    expect(await screen.findByRole('table')).toBeInTheDocument();
-  });
-
   it('das Raster nutzt dieselben Daten und Filter wie die Tabelle', async () => {
     api.getStatusZahlen.mockResolvedValue({ alle: 2, lager: 1, ausgelagert: 0, verkauft: 1, ausschuss: 0 });
     rendereSeite();

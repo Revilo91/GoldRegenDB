@@ -956,7 +956,11 @@ GoldRegenDB_Web/
         ├── context/AuthContext.jsx   # JWT-Auth-State + Rollen
         ├── components/               # DataTable, TableToolbar, PhotoUpload, ProtectedRoute, Toast
         ├── hooks/useFoto.js          # Foto per Artikelnummer laden (Tabelle, Modal, Detail, Upload)
+        ├── utils/                    # Reine Helfer (zahlen, status, artikelnummer, schmuckstuecke, …)
         └── pages/                    # Alle Seiten (Login, Dashboard, Schmuckstuecke, …)
+            ├── schmuckstuecke/       # Teile von Schmuckstuecke.jsx: SchmuckstueckFormular, BulkErfassungModal
+            ├── inventur/             # Teile von Inventur.jsx: DetailModal, InventurDiffModal, LagerInventur
+            └── documentManager/      # Teile von DocumentManager.jsx: BearbeitenModal, DetailModal
 ```
 
 ---

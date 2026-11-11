@@ -959,7 +959,8 @@ GoldRegenDB_Web/
         ├── utils/                    # Reine Helfer (zahlen, status, artikelnummer, schmuckstuecke, …)
         └── pages/                    # Alle Seiten (Login, Dashboard, Schmuckstuecke, …)
             ├── schmuckstuecke/       # Teile von Schmuckstuecke.jsx: SchmuckstueckFormular, BulkErfassungModal
-            └── inventur/             # Teile von Inventur.jsx: DetailModal, InventurDiffModal, LagerInventur
+            ├── inventur/             # Teile von Inventur.jsx: DetailModal, InventurDiffModal, LagerInventur
+            └── documentManager/      # Teile von DocumentManager.jsx: BearbeitenModal, DetailModal
 ```
 
 ---

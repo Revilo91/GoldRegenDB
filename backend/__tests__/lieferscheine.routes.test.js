@@ -5,19 +5,9 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 const request = require('supertest');
 const express = require('express');
 
-jest.mock('../src/config/db', () => ({
-  query: jest.fn(),
-  connect: jest.fn(),
-  setCurrentDbUsername: jest.fn(),
-  requestContextMiddleware: (req, res, next) => next(),
-}));
+jest.mock('../src/config/db', () => require('./helpers/dbMock').createDbMock());
 
-jest.mock('../src/utils/logger', () => ({
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
-}));
+jest.mock('../src/utils/logger', () => require('./helpers/dbMock').createLoggerMock());
 
 jest.mock('../src/utils/excelService', () => ({
   generateExcel: jest.fn().mockResolvedValue(Buffer.from('xlsx')),

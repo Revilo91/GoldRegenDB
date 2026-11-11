@@ -27,12 +27,7 @@ jest.mock('../src/config/db', () => {
   };
 });
 
-jest.mock('../src/utils/logger', () => ({
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
-}));
+jest.mock('../src/utils/logger', () => require('./helpers/dbMock').createLoggerMock());
 
 const fs = require('fs');
 const path = require('path');

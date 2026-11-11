@@ -4,9 +4,7 @@
 // schreibeSnapshot() müssen dieselben Summen liefern wie belegSummen().
 // Opt-in wie migrations.integration.test.js (TEST_DATABASE_URL, "test" im Namen).
 
-jest.mock('../src/utils/logger', () => ({
-  info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn(),
-}));
+jest.mock('../src/utils/logger', () => require('./helpers/dbMock').createLoggerMock());
 
 const fs = require('fs');
 const path = require('path');

@@ -19,12 +19,7 @@ jest.mock('../src/config/db', () => ({
 }));
 
 // Mock logger to avoid noisy output
-jest.mock('../src/utils/logger', () => ({
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
-}));
+jest.mock('../src/utils/logger', () => require('./helpers/dbMock').createLoggerMock());
 
 const jwt = require('jsonwebtoken');
 const { authenticate, requireAdmin, requireBearbeiter } = require('../src/middleware/auth');

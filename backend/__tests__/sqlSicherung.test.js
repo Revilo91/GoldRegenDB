@@ -1,11 +1,6 @@
 'use strict';
 
-jest.mock('../src/utils/logger', () => ({
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
-}));
+jest.mock('../src/utils/logger', () => require('./helpers/dbMock').createLoggerMock());
 jest.mock('bcryptjs', () => ({ hash: jest.fn() }));
 
 const fs = require('fs');

@@ -17,12 +17,7 @@ jest.mock('../src/config/db', () => ({
   requestContextMiddleware: (req, res, next) => next(),
 }));
 
-jest.mock('../src/utils/logger', () => ({
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
-}));
+jest.mock('../src/utils/logger', () => require('./helpers/dbMock').createLoggerMock());
 
 const db = require('../src/config/db');
 const schmuckstueckeRoutes = require('../src/routes/schmuckstuecke');

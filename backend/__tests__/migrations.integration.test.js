@@ -12,12 +12,7 @@
 // löscht sie am Ende; die Rolle braucht dafür CREATEDB. Datenbanken ohne
 // "test" im Namen werden verweigert.
 
-jest.mock('../src/utils/logger', () => ({
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
-}));
+jest.mock('../src/utils/logger', () => require('./helpers/dbMock').createLoggerMock());
 
 const fs = require('fs');
 const os = require('os');

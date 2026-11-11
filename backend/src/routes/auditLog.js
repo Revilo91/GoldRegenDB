@@ -115,35 +115,4 @@ router.get('/verify', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /audit-log/artikel/{artikelnummer}:
- *   get:
- *     summary: Audit-Log für ein bestimmtes Schmuckstück
- *     description: 'Erfordert Rolle: admin.'
- *     tags: [Audit Log]
- *     parameters:
- *       - { name: artikelnummer, in: path, required: true, schema: { type: string } }
- *     responses:
- *       200:
- *         description: Änderungen für diese Artikelnummer
- *         content:
- *           application/json:
- *             schema: { type: array, items: { $ref: '#/components/schemas/AuditLogEintrag' } }
- *       401: { $ref: '#/components/responses/Unauthorized' }
- *       403: { $ref: '#/components/responses/Forbidden' }
- */
-router.get('/artikel/:artikelnummer', async (req, res) => {
-  try {
-    const { rows } = await db.query(
-      'SELECT * FROM audit_log WHERE artikelnummer_id = $1 ORDER BY change_timestamp DESC',
-      [req.params.artikelnummer]
-    );
-    res.json(rows);
-  } catch (err) {
-    logger.error('AUDIT-LOG', 'Fehler beim Laden des Audit-Logs', { artikelnummer: req.params.artikelnummer, message: err.message });
-    res.status(500).json({ error: 'Fehler beim Laden des Audit-Logs' });
-  }
-});
-
 module.exports = router;

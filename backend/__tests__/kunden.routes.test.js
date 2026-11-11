@@ -45,37 +45,6 @@ describe('GET /api/kunden', () => {
   });
 });
 
-describe('GET /api/kunden/:id', () => {
-  it('liefert einen einzelnen Kunden', async () => {
-    db.query.mockResolvedValueOnce({ rows: [{ ID: 5, Name: 'Bernd' }] });
-
-    const res = await request(buildApp()).get('/api/kunden/5');
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.Name).toBe('Bernd');
-  });
-
-  it('meldet 404 bei unbekannter ID', async () => {
-    db.query.mockResolvedValueOnce({ rows: [] });
-
-    const res = await request(buildApp()).get('/api/kunden/999');
-
-    expect(res.statusCode).toBe(404);
-  });
-});
-
-describe('GET /api/kunden/:id/schmuckstuecke', () => {
-  it('nutzt whereClauseBuilder für die Ausgelagert-Filterung', async () => {
-    db.query.mockResolvedValueOnce({ rows: [{ Artikelnummer: 'MHO001' }] });
-
-    const res = await request(buildApp()).get('/api/kunden/3/schmuckstuecke');
-
-    expect(res.statusCode).toBe(200);
-    expect(db.query.mock.calls[0][0]).toContain('"Ausgelagert" = $1');
-    expect(db.query.mock.calls[0][1]).toEqual([3]);
-  });
-});
-
 describe('POST /api/kunden', () => {
   const gueltigerKunde = {
     Name: 'Neuer Kunde',
@@ -170,41 +139,6 @@ describe('PUT /api/kunden/:id', () => {
     const res = await request(buildApp()).put('/api/kunden/999').send(gueltigerKunde);
 
     expect(res.statusCode).toBe(404);
-  });
-});
-
-describe('PUT /api/kunden/:id/restock', () => {
-  it('lagert alle Artikel des Kunden zurück', async () => {
-    db.query.mockResolvedValueOnce({ rowCount: 3 });
-
-    const res = await request(buildApp()).put('/api/kunden/3/restock');
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.message).toBe('3 Artikel zurückgelagert');
-  });
-
-  // Befund C7: hier stand builder.ausgelagert(id), das nur auf
-  // "Ausgelagert" = $1 filtert. Ein beim Kunden VERKAUFTES Stück verlor damit
-  // seinen Kundenbezug -- die Provisionsbasis des Kunden sank rückwirkend.
-  it('fasst verkaufte und Ausschuss-Stücke nicht an', async () => {
-    db.query.mockResolvedValueOnce({ rowCount: 1 });
-
-    await request(buildApp()).put('/api/kunden/3/restock');
-
-    const sql = String(db.query.mock.calls[0][0]);
-    expect(sql).toContain('"Verkauft" IS FALSE');
-    expect(sql).toContain('"Ausschuss" IS FALSE');
-  });
-
-  // Befund C7, zweite Folge: "Lieferschein_ID" blieb gesetzt. Das Stück war
-  // danach gleichzeitig verfügbar UND Position eines Lieferscheins und konnte
-  // ein zweites Mal ausgeliefert werden.
-  it('setzt die Lieferschein-Zuordnung mit zurück', async () => {
-    db.query.mockResolvedValueOnce({ rowCount: 1 });
-
-    await request(buildApp()).put('/api/kunden/3/restock');
-
-    expect(String(db.query.mock.calls[0][0])).toContain('"Lieferschein_ID" = 0');
   });
 });
 

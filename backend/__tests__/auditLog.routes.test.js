@@ -62,11 +62,4 @@ describe('Audit-Log API', () => {
     expect(res.body.data).toHaveLength(1);
     expect(res.body.pagination.total).toBe(1);
   });
-
-  it('liefert das Audit-Log für ein einzelnes Artikel', async () => {
-    db.query.mockResolvedValueOnce({ rows: [{ id: 1, artikelnummer_id: 'A1' }] });
-    const res = await request(app).get('/api/audit-log/artikel/A1');
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveLength(1);
-  });
 });

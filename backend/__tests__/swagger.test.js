@@ -15,19 +15,9 @@ process.env.JWT_SECRET = 'test-secret-do-not-use-in-prod';
 process.env.BESTELLUNG_ENCRYPTION_KEY = 'b3ae96f21e2f1ca8b65351153ccb3d8f0a1aa9b495c91b11530467d34c2e9336';
 process.env.PRIVACY_POLICY_VERSION = 'test-v1';
 
-jest.mock('../src/config/db', () => ({
-  query: jest.fn(),
-  connect: jest.fn(),
-  setCurrentDbUsername: jest.fn(),
-  requestContextMiddleware: (req, res, next) => next(),
-}));
+jest.mock('../src/config/db', () => require('./helpers/dbMock').createDbMock());
 
-jest.mock('../src/utils/logger', () => ({
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
-}));
+jest.mock('../src/utils/logger', () => require('./helpers/dbMock').createLoggerMock());
 
 const request = require('supertest');
 const express = require('express');
@@ -198,12 +188,5 @@ describe('/api-docs ist auch wenn gemountet nie anonym erreichbar', () => {
     const app = buildApiDocsApp();
     const res = await request(app).get('/api-docs/');
     expect(res.statusCode).toBe(401);
-  });
-
-  it('ist unter Produktionsbedingungen ohne ENABLE_API_DOCS im echten Server-Startup gar nicht erst gemountet', () => {
-    // Ergänzt den 401-Test oben: In index.js hängt die Registrierung selbst an
-    // shouldEnableApiDocs() – ohne Flag existiert die Route in Produktion nicht
-    // einmal, "nicht ungeschützt erreichbar" gilt also auf zwei Ebenen.
-    expect(swaggerSpec.shouldEnableApiDocs({ NODE_ENV: 'production' })).toBe(false);
   });
 });

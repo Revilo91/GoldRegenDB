@@ -1,8 +1,8 @@
 # Anforderungs-Review: offene Fragen und Lücken
 
 Stand: 2026-10-01, Commit `1b14faa`. Sicht eines Requirements Engineers, der das
-Projekt übernimmt. Technische Fehler stehen bereits in
-`AUDIT_LOGIK_DATENBANK.md`; dieses Dokument fragt nach dem **Was** und
+Projekt übernimmt. Technische Fehler standen im inzwischen gelöschten
+`AUDIT_LOGIK_DATENBANK.md` (Git-Historie); dieses Dokument fragt nach dem **Was** und
 **Warum**: fachliche Regeln, die nirgends festgelegt sind, und Anforderungen,
 die niemand gestellt hat.
 
@@ -212,14 +212,8 @@ Diese Punkte brauchen keine fachliche Entscheidung, nur Priorisierung.
   steht zweimal; einmal heißt es „in `styles/<seite>.css`“, einmal „in
   `index.css`“. Laut Regel ist `index.css` nur Import-Liste → zweiten Block
   streichen (eigener `docs:`-Commit).
-- **Root-Dokumente sind veraltet:** `AUDIT_LOGIK_DATENBANK.md` (Stand `b06aaf7`)
-  hat keine Status-Spalte; mehrere Befunde sind behoben (B1 Geld als `NUMERIC`
-  per Migration 0003, B4 `UNIQUE` auf `Rechnung.ID`, E8 Healthcheck). Die
-  Randnotiz, `graphify-out/` fehle, stimmt nicht mehr.
-  `TESTPLAN_VERBESSERUNG.md` nennt 27+2 Testdateien. `TECHNOLOGIE.md` spricht
-  von Nginx, ausgeliefert wird per Express.
-  Vorschlag: nach `docs/archiv/` verschieben oder je Befund „offen/behoben“
-  ergänzen.
+- **Root-Dokumente entfernt:** `AUDIT_LOGIK_DATENBANK.md`, `TESTPLAN_VERBESSERUNG.md`
+  und `TECHNOLOGIE.md` waren veraltet und sind gelöscht (Stand in der Git-Historie).
 - **Drei Sicherungswege, keine Übersicht:** Der JSON-/SQL-Export der Oberfläche
   enthält keine Fotos (README), der vollständige `pg_dump` in `db/backup.sh`
   dagegen schon (BYTEA). Eine Tabelle „welche Sicherung enthält was, wie

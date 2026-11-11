@@ -684,7 +684,6 @@ async function generateExcel(type, data, logoPath) {
   };
 
   // Footer
-  // const f = '&"Calibri,Regular"&8 ';
   const f = "&8 ";
 
   const left = `&L${f}${contact.company}\n${f}${contact.name}\n${f}${BUSINESS_ADDRESS}`;

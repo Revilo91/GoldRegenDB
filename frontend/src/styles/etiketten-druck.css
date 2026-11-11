@@ -214,23 +214,6 @@
   color: var(--gold);
 }
 
-/* clickable badges used in Etiketten */
-.badge.clickable {
-  cursor: pointer;
-  user-select: none;
-  transition: var(--transition);
-}
-.badge.clickable:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
-}
-
-/* small adjustments for Etikett component */
-.etikett-meta {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
 .card-body h4 {
   margin: 0;
   padding: 12px 16px;

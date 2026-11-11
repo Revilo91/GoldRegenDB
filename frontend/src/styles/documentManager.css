@@ -109,10 +109,6 @@
   margin-bottom: 4px;
 }
 
-.rabatt-small {
-  color: var(--text-muted);
-}
-
 /* Detail Grid Values */
 .detail-value-warning {
   color: var(--warning);

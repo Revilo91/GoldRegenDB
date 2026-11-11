@@ -98,11 +98,6 @@
   color: var(--success);
 }
 
-.logout-btn {
-  width: 100%;
-  justify-content: center;
-}
-
 /* User Menu Modal */
 .user-menu-modal {
   max-width: 400px;

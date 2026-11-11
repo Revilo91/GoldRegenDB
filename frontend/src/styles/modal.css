@@ -112,13 +112,3 @@
   grid-column: 1 / -1;
 }
 
-.modal-form-grid .checkbox-group {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0;
-}
-
-.modal-form-grid .checkbox-group .checkbox-label {
-  margin-bottom: 0;
-}
-

@@ -47,13 +47,6 @@ select.form-control {
   gap: 10px;
 }
 
-.checkbox-field {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 0;
-}
-
 .form-checkbox {
   width: 20px;
   height: 20px;
